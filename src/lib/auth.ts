@@ -37,8 +37,12 @@ export function useSession() {
 }
 
 export function firstName(session: Session | null): string {
-  const meta = session?.user.user_metadata as { prenom?: string } | undefined;
+  const meta = session?.user.user_metadata as { prenom?: string; given_name?: string; full_name?: string; name?: string } | undefined;
   if (meta?.prenom?.trim()) return meta.prenom.trim();
+  // compte Google : prénom fourni par Google
+  if (meta?.given_name?.trim()) return meta.given_name.trim();
+  const full = (meta?.full_name || meta?.name || '').trim();
+  if (full) return full.split(/\s+/)[0];
   const local = session?.user.email?.split('@')[0] ?? '';
   const word = local.split(/[._\-+0-9]/).find(Boolean) ?? '';
   return word ? word[0].toUpperCase() + word.slice(1) : '';
@@ -70,6 +74,24 @@ export async function resetPassword(email: string) {
 export async function updatePassword(password: string) {
   const { error } = await supabase!.auth.updateUser({ password });
   if (error) throw new Error(frError(error.message));
+}
+
+/** Connexion avec Google : redirige vers Google puis revient sur le site. */
+export async function signInWithGoogle() {
+  const { error } = await supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectTo() } });
+  if (error) throw new Error(frError(error.message));
+}
+
+/** Vérifie si la connexion Google est activée dans Supabase (pour ne pas envoyer vers une page d'erreur). */
+export async function googleEnabled(): Promise<boolean> {
+  if (!url || !key) return false;
+  try {
+    const r = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+    const j = await r.json();
+    return !!j?.external?.google;
+  } catch {
+    return false;
+  }
 }
 
 export async function signOut() {

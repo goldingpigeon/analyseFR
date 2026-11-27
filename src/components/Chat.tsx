@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { askAssistant, isTabular, prepareFile, type ApiMsg, type Part } from '../lib/ai';
 import { fmtBytes } from '../lib/fr';
+import { deleteConversation, HistoryError, listConversations, loadConversation, saveConversation, type ConvSummary } from '../lib/history';
 import { Quark } from './Quark';
 
 /* ------------------------------------------------------------ État de la conversation */
@@ -17,13 +18,108 @@ export interface ChatMsg {
   parts?: Part[]; // ce qui a réellement été envoyé (messages utilisateur)
   status?: 'thinking' | 'streaming' | 'done' | 'error' | 'stopped';
   phase?: string;
+  /** Réponse reçue pendant cette session : affichée avec l'effet machine à écrire. */
+  animate?: boolean;
 }
 
-/** Conservé dans App pour survivre aux allers-retours avec l'espace de travail. */
-export function useChatState() {
+/**
+ * Conversation en cours + historique enregistré dans Supabase.
+ * Conservé dans App pour survivre aux allers-retours avec l'espace de travail.
+ */
+export function useChatState(userId: string | null) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [convId, setConvId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [list, setList] = useState<ConvSummary[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyMissing, setHistoryMissing] = useState(false);
+  /** Incrémenté à chaque nouvelle conversation (nouveau message d'accueil). */
+  const [epoch, setEpoch] = useState(0);
   const lastContext = useRef<string | null>(null);
-  return { messages, setMessages, lastContext };
+  const convIdRef = useRef<string | null>(null);
+  convIdRef.current = convId;
+
+  const onError = (e: unknown) => {
+    setHistoryError((e as Error).message);
+    setHistoryMissing(e instanceof HistoryError && e.missing);
+  };
+
+  const refresh = useCallback(async () => {
+    setListLoading(true);
+    try {
+      setList(await listConversations());
+      setHistoryError(null);
+      setHistoryMissing(false);
+    } catch (e) {
+      onError(e);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  const startNew = useCallback(() => {
+    setMessages([]);
+    setConvId(null);
+    convIdRef.current = null;
+    lastContext.current = null;
+    setEpoch((e) => e + 1);
+  }, []);
+
+  // Changement d'utilisateur : on repart de zéro et on charge son historique.
+  useEffect(() => {
+    startNew();
+    setList([]);
+    if (userId) refresh();
+  }, [userId, refresh, startNew]);
+
+  const open = useCallback(async (id: string) => {
+    try {
+      const ms = await loadConversation(id);
+      setMessages(ms);
+      setConvId(id);
+      convIdRef.current = id;
+      lastContext.current = null;
+    } catch (e) {
+      onError(e);
+    }
+  }, []);
+
+  const remove = useCallback(
+    async (id: string) => {
+      try {
+        await deleteConversation(id);
+        setList((l) => l.filter((c) => c.id !== id));
+        if (convIdRef.current === id) startNew();
+      } catch (e) {
+        onError(e);
+      }
+    },
+    [startNew],
+  );
+
+  /** Enregistre la conversation après chaque réponse. */
+  const persist = useCallback(
+    async (ms: ChatMsg[]) => {
+      if (!userId || !ms.length) return;
+      try {
+        const id = await saveConversation(convIdRef.current, ms);
+        if (!convIdRef.current) {
+          convIdRef.current = id;
+          setConvId(id);
+        }
+        refresh();
+      } catch (e) {
+        onError(e);
+      }
+    },
+    [userId, refresh],
+  );
+
+  return {
+    messages, setMessages, lastContext, convId, busy, setBusy, epoch,
+    list, listLoading, historyError, historyMissing, refresh, startNew, open, remove, persist,
+  };
 }
 export type ChatState = ReturnType<typeof useChatState>;
 
@@ -43,11 +139,11 @@ export function ChatPanel({
   analyzeTabular: AnalyzeTabular;
   workspaceContext: string | null;
 }) {
-  const { messages, setMessages, lastContext } = chat;
+  const { messages, setMessages, lastContext, busy, setBusy, persist } = chat;
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const depth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -63,10 +159,20 @@ export function ChatPanel({
   );
 
   // défilement vers la dernière réponse
-  const last = messages[messages.length - 1];
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length, last?.text.length, last?.phase]);
+  }, [messages.length]);
+  // pendant l'écriture, on suit le texte tant que l'utilisateur est en bas de page
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 260;
+      if (nearBottom) endRef.current?.scrollIntoView({ block: 'end' });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [messages.length > 0]);
 
   // hauteur automatique du champ
   useEffect(() => {
@@ -98,7 +204,7 @@ export function ChatPanel({
     setMessages((ms) => [
       ...ms,
       { id: userId, role: 'user', text: question, files: attached.map((f) => ({ name: f.name, size: f.size })) },
-      { id: botId, role: 'assistant', text: '', status: 'thinking', phase: attached.length ? 'Lecture des fichiers…' : 'Réflexion…' },
+      { id: botId, role: 'assistant', text: '', status: 'thinking', phase: attached.length ? 'Lecture des fichiers…' : 'Réflexion…', animate: true },
     ]);
 
     try {
@@ -157,6 +263,8 @@ export function ChatPanel({
       abort.current = null;
       setBusy(false);
       textarea.current?.focus();
+      // enregistrement dans l'historique, une fois l'état à jour
+      setTimeout(() => persist(messagesRef.current), 0);
     }
   };
 
@@ -166,7 +274,7 @@ export function ChatPanel({
     <div className="w-full">
       {/* Conversation */}
       {messages.length > 0 && (
-        <div className="mt-10 flex flex-col gap-6" aria-live="polite">
+        <div ref={listRef} className="mt-6 flex flex-col gap-6" aria-live="polite">
           {messages.map((m) => (
             <Message key={m.id} m={m} />
           ))}
@@ -320,10 +428,12 @@ function Message({ m }: { m: ChatMsg }) {
   }
 
   const active = m.status === 'thinking' || m.status === 'streaming';
+  const shown = useTypewriter(m.text, !!m.animate && m.status !== 'error', m.status === 'thinking' || m.status === 'streaming');
+  const typing = shown.length < m.text.length;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex gap-3 sm:gap-4">
       <div className="mt-0.5 shrink-0">
-        <Quark active={active} />
+        <Quark active={active || typing} />
       </div>
       <div className="min-w-0 flex-1">
         {m.status === 'thinking' && !m.text ? (
@@ -331,8 +441,8 @@ function Message({ m }: { m: ChatMsg }) {
         ) : m.status === 'error' ? (
           <p role="alert" className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{m.text}</p>
         ) : (
-          <div className={`md-body ${m.status === 'streaming' ? 'is-streaming' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+          <div className={`md-body ${m.status === 'streaming' || typing ? 'is-streaming' : ''}`}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{shown}</ReactMarkdown>
             {m.status === 'stopped' && <p className="mt-2 text-xs text-mist">Réponse arrêtée.</p>}
           </div>
         )}
@@ -344,4 +454,51 @@ function Message({ m }: { m: ChatMsg }) {
 function FileIcon({ name }: { name: string }) {
   const ext = (name.split('.').pop() || '').slice(0, 4).toUpperCase();
   return <span className="rounded-md bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-black">{ext || 'FICHIER'}</span>;
+}
+
+/**
+ * Effet « machine à écrire » : le texte reçu s'affiche caractère par caractère.
+ * La vitesse s'adapte au retard, pour ne jamais trop traîner derrière la réponse.
+ */
+function useTypewriter(full: string, enabled: boolean, receiving: boolean): string {
+  const reduce = useReducedMotion();
+  const on = enabled && !reduce;
+  const [n, setN] = useState(on ? 0 : full.length);
+  // position persistante : la boucle peut s'arrêter puis repartir sans recommencer au début
+  const st = useRef({ pos: on ? 0 : full.length, raf: 0, last: 0, full, receiving });
+  st.current.full = full;
+  st.current.receiving = receiving;
+
+  useEffect(() => {
+    const s = st.current;
+    if (!on) {
+      setN(full.length);
+      return;
+    }
+    if (s.raf) return; // déjà en cours
+    s.last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(64, now - s.last);
+      s.last = now;
+      const target = s.full.length;
+      const backlog = target - s.pos;
+      if (backlog > 0) {
+        const cps = 45 + backlog * 1.5; // caractères par seconde : régulier, accélère si la réponse est longue
+        s.pos = Math.min(target, s.pos + Math.max(1, (cps * dt) / 1000));
+        setN(Math.floor(s.pos));
+      }
+      s.raf = s.pos < s.full.length || s.receiving ? requestAnimationFrame(tick) : 0;
+    };
+    s.raf = requestAnimationFrame(tick);
+  }, [on, full, receiving]);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(st.current.raf);
+      st.current.raf = 0;
+    },
+    [],
+  );
+
+  return on ? full.slice(0, n) : full;
 }

@@ -106,6 +106,14 @@ Installation (une seule fois) :
 
 La clé reste dans Supabase ; seuls les utilisateurs connectés peuvent appeler l'assistant.
 
+## Historique des conversations et connexion Google
+
+- **Historique** : exécutez une fois `supabase/migrations/20261128000000_conversations.sql` dans
+  Supabase → **SQL Editor**. Chaque utilisateur ne voit que ses propres conversations.
+  Les pièces jointes (images, PDF) ne sont pas conservées, seulement leur nom.
+- **Google** : Supabase → **Authentication → Sign In / Providers → Google**, avec un identifiant
+  OAuth créé dans Google Cloud (URI de redirection : `https://<projet>.supabase.co/auth/v1/callback`).
+
 ## Où trouver les fichiers
 
 Sur data.gouv.fr, cherchez « Liste des permis de construire et autres autorisations

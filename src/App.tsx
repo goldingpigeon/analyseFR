@@ -44,7 +44,7 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('connexion');
   const { session, recovery, endRecovery } = useSession();
-  const chat = useChatState();
+  const chat = useChatState(session?.user.id ?? null);
   // Demandes du chat envoyées au même module de lecture que l'espace de travail
   const pendingInspect = useRef(new Map<string, (r: InspectResult) => void>());
   const pendingSearch = useRef(
