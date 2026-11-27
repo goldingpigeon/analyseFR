@@ -33,4 +33,4 @@ jobs:
         with:
           version: latest
       - name: Déployer « assistant »
-        run: supabase functions deploy assistant --project-ref "$PROJECT_REF" --no-verify-jwt
+        run: supabase functions deploy assistant --project-ref "$PROJECT_REF" --no-verify-jwt --yes
