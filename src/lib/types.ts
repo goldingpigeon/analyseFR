@@ -74,12 +74,12 @@ export interface Results {
 
 export type WorkerIn =
   | { type: 'inspect'; id: string; file: File }
-  | { type: 'search'; files: SearchFile[]; filters: Filters }
+  | { type: 'search'; files: SearchFile[]; filters: Filters; reqId?: string }
   | { type: 'cancel' };
 
 export type WorkerOut =
   | InspectResult
-  | ({ type: 'progress' } & Progress)
-  | ({ type: 'done' } & Results)
-  | { type: 'cancelled' }
-  | { type: 'error'; message: string };
+  | ({ type: 'progress'; reqId?: string } & Progress)
+  | ({ type: 'done'; reqId?: string } & Results)
+  | { type: 'cancelled'; reqId?: string }
+  | { type: 'error'; message: string; reqId?: string };

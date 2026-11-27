@@ -249,3 +249,145 @@ select.field option {
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------- Assistant */
+@keyframes quark-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.quark-spin {
+  animation: quark-spin 6s linear infinite;
+  will-change: transform;
+}
+@keyframes quark-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.75;
+  }
+}
+.quark-pulse {
+  animation: quark-pulse 1.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* Texte « Réflexion… » qui scintille */
+@keyframes thinking-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.thinking-text {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.35) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-shine 1.8s linear infinite;
+}
+
+/* Réponses en Markdown */
+.md-body {
+  color: #ececec;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.md-body > * + * {
+  margin-top: 0.8em;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3 {
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.2em;
+}
+.md-body h1 { font-size: 1.3em; }
+.md-body h2 { font-size: 1.15em; }
+.md-body h3 { font-size: 1.05em; }
+.md-body strong { color: #fff; font-weight: 600; }
+.md-body ul,
+.md-body ol {
+  padding-left: 1.3em;
+}
+.md-body ul { list-style: disc; }
+.md-body ol { list-style: decimal; }
+.md-body li + li { margin-top: 0.3em; }
+.md-body li::marker { color: rgba(255, 255, 255, 0.45); }
+.md-body a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.md-body code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.md-body pre {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+}
+.md-body pre code { background: none; padding: 0; }
+.md-body blockquote {
+  border-left: 2px solid rgba(255, 255, 255, 0.25);
+  padding-left: 1em;
+  color: var(--color-mist);
+}
+.md-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md-body th,
+.md-body td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.45em 0.9em;
+  text-align: left;
+  white-space: nowrap;
+}
+.md-body th { color: #fff; font-weight: 600; }
+/* curseur clignotant pendant l'écriture */
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.md-body.is-streaming > :last-child::after {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: -0.12em;
+  border-radius: 2px;
+  background: #fff;
+  animation: caret 0.9s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quark-spin,
+  .quark-pulse,
+  .thinking-text,
+  .md-body.is-streaming > :last-child::after {
+    animation: none !important;
+  }
+  .thinking-text {
+    color: #fff;
+    background: none;
+  }
+}

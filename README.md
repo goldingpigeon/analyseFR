@@ -85,6 +85,25 @@ VITE_SUPABASE_ANON_KEY=votre-cle-anon
 Seuls le prénom et l'adresse e-mail sont enregistrés chez Supabase. Les fichiers analysés
 ne quittent jamais l'appareil.
 
+## Assistant IA (Google Gemini)
+
+Une fois connecté, la zone « Quoi de neuf ? » est un chat. On peut y joindre n'importe quel fichier :
+
+- **CSV / Excel de permis** : analysés sur l'appareil par l'application ; seuls des totaux
+  (par commune, mois, département, type) sont envoyés à l'IA. Aucun nom, SIREN ni n° de permis.
+- **PDF, images, audio, vidéo** (15 Mo max) et **fichiers texte** : envoyés à Gemini.
+- Les résultats affichés dans l'espace de travail servent aussi de contexte.
+
+Installation (une seule fois) :
+
+1. Créez une clé sur https://aistudio.google.com/apikey.
+2. Supabase → **Edge Functions → Deploy a new function → Via Editor**, nommez-la `assistant`,
+   collez le contenu de `supabase/functions/assistant/index.ts`, puis **Deploy**.
+3. Supabase → **Edge Functions → Secrets** : ajoutez `GEMINI_API_KEY` (et, si besoin,
+   `GEMINI_MODEL`, par défaut `gemini-flash-latest`).
+
+La clé Gemini reste dans Supabase ; seuls les utilisateurs connectés peuvent appeler l'assistant.
+
 ## Où trouver les fichiers
 
 Sur data.gouv.fr, cherchez « Liste des permis de construire et autres autorisations

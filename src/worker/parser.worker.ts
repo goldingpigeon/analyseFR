@@ -39,9 +39,9 @@ ctx.onmessage = async (e: MessageEvent<WorkerIn>) => {
   if (msg.type === 'search') {
     cancelled = false;
     try {
-      await search(msg.files, msg.filters);
+      await search(msg.files, msg.filters, msg.reqId);
     } catch (err) {
-      post({ type: 'error', message: `Erreur pendant la lecture : ${(err as Error).message || err}` });
+      post({ type: 'error', reqId: msg.reqId, message: `Erreur pendant la lecture : ${(err as Error).message || err}` });
     }
   }
 };
@@ -89,7 +89,7 @@ function firstSheetRows(wb: XLSX.WorkBook): unknown[][] {
 
 /* ---------------------------------------------------------------- Recherche */
 
-async function search(files: SearchFile[], filters: Filters) {
+async function search(files: SearchFile[], filters: Filters, reqId?: string) {
   const t0 = performance.now();
   const from = filters.from || 0;
   const to = filters.to || 99999999;
@@ -110,7 +110,7 @@ async function search(files: SearchFile[], filters: Filters) {
     const now = performance.now();
     if (!force && now - lastPost < 60) return;
     lastPost = now;
-    post({ type: 'progress', bytesDone: bytesBefore + bytesInFile, bytesTotal, scanned, matched, fileIndex });
+    post({ type: 'progress', reqId, bytesDone: bytesBefore + bytesInFile, bytesTotal, scanned, matched, fileIndex });
   };
 
   const handleRow = (r: ArrayLike<unknown>, m: Mapping, fi: number) => {
@@ -143,7 +143,7 @@ async function search(files: SearchFile[], filters: Filters) {
       await scanCsv(f, fi, handleRow, progress);
     }
     if (cancelled) {
-      post({ type: 'cancelled' });
+      post({ type: 'cancelled', reqId });
       return;
     }
     bytesBefore += f.file.size;
@@ -156,7 +156,7 @@ async function search(files: SearchFile[], filters: Filters) {
   const surf = Float64Array.from(out.surf);
   post(
     {
-      type: 'done', code: out.code, date, file, num: out.num, dem: out.dem, siren: out.siren, lgt, surf,
+      type: 'done', reqId, code: out.code, date, file, num: out.num, dem: out.dem, siren: out.siren, lgt, surf,
       labels: files.map((f) => f.label), scanned, matched, truncated: matched > MAX_RESULTS,
       ms: performance.now() - t0,
     },

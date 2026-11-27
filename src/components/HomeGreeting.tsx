@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-
-const ACCEPT = /\.(csv|txt|xlsx|xls|xlsm)$/i;
+import { ChatPanel, type AnalyzeTabular, type ChatState } from './Chat';
 
 function salutation(d = new Date()): string {
   const h = d.getHours();
@@ -16,7 +15,9 @@ export function HomeGreeting({
   prenom,
   email,
   onOpenWorkspace,
-  onFiles,
+  chat,
+  analyzeTabular,
+  workspaceContext,
   onSample,
   onPreset,
   onSignOut,
@@ -24,21 +25,15 @@ export function HomeGreeting({
   prenom: string;
   email: string;
   onOpenWorkspace: () => void;
-  onFiles: (files: File[], rejected: string[]) => void;
+  chat: ChatState;
+  analyzeTabular: AnalyzeTabular;
+  workspaceContext: string | null;
   onSample: () => void;
   onPreset: (id: string) => void;
   onSignOut: () => void;
 }) {
-  const [over, setOver] = useState(false);
   const [menu, setMenu] = useState(false);
-  const depth = useRef(0);
-  const input = useRef<HTMLInputElement>(null);
-
-  const take = (list: FileList | null) => {
-    if (!list?.length) return;
-    const all = Array.from(list);
-    onFiles(all.filter((f) => ACCEPT.test(f.name)), all.filter((f) => !ACCEPT.test(f.name)).map((f) => f.name));
-  };
+  const chatting = chat.messages.length > 0;
 
   const initiale = (prenom || email || '?').trim()[0]?.toUpperCase() ?? '?';
   const chips: { label: string; action: () => void }[] = [
@@ -46,6 +41,7 @@ export function HomeGreeting({
     { label: 'Depuis le 1er janvier', action: () => onPreset('ytd') },
     { label: '12 derniers mois', action: () => onPreset('12m') },
     { label: "Essayer avec l'exemple", action: onSample },
+    { label: "Ouvrir l'espace de travail ↗", action: onOpenWorkspace },
   ];
 
   return (
@@ -88,7 +84,7 @@ export function HomeGreeting({
           </div>
         </header>
 
-        <main className="flex flex-1 flex-col items-center justify-center py-14">
+        <main className={`flex flex-1 flex-col items-center py-14 ${chatting ? 'justify-start' : 'justify-center'}`}>
           <div className="w-full max-w-2xl">
             <motion.p
               className="mb-4 flex items-center justify-center gap-3 text-xs tracking-[0.2em] text-mist uppercase"
@@ -112,70 +108,9 @@ export function HomeGreeting({
               Quoi de neuf{prenom ? <>, <span className="text-white/55">{prenom}</span></> : ''}{' '}?
             </motion.h1>
 
-            <motion.div
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              onDragEnter={(e) => {
-                e.preventDefault();
-                depth.current++;
-                setOver(true);
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onDragLeave={() => {
-                depth.current = Math.max(0, depth.current - 1);
-                if (!depth.current) setOver(false);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                depth.current = 0;
-                setOver(false);
-                take(e.dataTransfer.files);
-              }}
-              className={`mt-10 rounded-[1.75rem] border bg-[#0e0e0e]/90 p-4 shadow-[0_28px_100px_-40px_rgba(255,255,255,0.25)] backdrop-blur transition-colors sm:p-5 ${
-                over ? 'border-white/70 bg-white/[0.06]' : 'border-white/15'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => input.current?.click()}
-                className="block min-h-24 w-full cursor-pointer rounded-2xl px-2 pt-2 text-left text-base text-mist transition hover:text-white sm:text-lg"
-              >
-                {over ? 'Lâchez le fichier pour commencer…' : 'Déposez un fichier CSV ou Excel ici, ou cliquez pour le choisir…'}
-              </button>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => input.current?.click()}
-                  className="flex items-center gap-2 rounded-full border border-white/15 px-3.5 py-2 text-sm text-mist transition hover:border-white/40 hover:text-white"
-                >
-                  <span aria-hidden className="text-base leading-none">+</span> Ajouter des fichiers
-                </button>
-                <button
-                  type="button"
-                  onClick={onOpenWorkspace}
-                  aria-label="Ouvrir l'espace de travail"
-                  title="Ouvrir l'espace de travail"
-                  className="grid size-10 place-items-center rounded-full bg-white text-black transition hover:bg-white/85"
-                >
-                  <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M4 10h12M11 5l5 5-5 5" />
-                  </svg>
-                </button>
-              </div>
-              <input
-                ref={input}
-                type="file"
-                multiple
-                accept=".csv,.txt,.xlsx,.xls,.xlsm,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  take(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-            </motion.div>
+            <ChatPanel chat={chat} analyzeTabular={analyzeTabular} workspaceContext={workspaceContext} />
 
+            {!chatting && (
             <motion.div
               className="mt-5 flex flex-wrap justify-center gap-2"
               initial="hide"
@@ -196,6 +131,7 @@ export function HomeGreeting({
                 </motion.button>
               ))}
             </motion.div>
+            )}
           </div>
         </main>
 
@@ -203,7 +139,7 @@ export function HomeGreeting({
           <span>
             <span className="text-white">tamim k.</span> · 2026
           </span>
-          <span>Vos fichiers restent sur votre appareil.</span>
+          <span>L'espace de travail reste 100 % local.</span>
         </footer>
       </div>
     </div>

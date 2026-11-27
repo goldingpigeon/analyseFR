@@ -7,6 +7,10 @@ import { FileCard, type FileEntry } from './components/FileCard';
 import { defaultFilters, FiltersPanel, PRESETS, type FilterState } from './components/FiltersPanel';
 import { AuthDialog, type AuthMode } from './components/AuthDialog';
 import { HomeGreeting } from './components/HomeGreeting';
+import { useChatState, type AnalyzeTabular } from './components/Chat';
+import { statsForAI } from './lib/aiContext';
+import { fileAsText } from './lib/ai';
+import { fmtBytes } from './lib/fr';
 import { firstName, signOut, useSession } from './lib/auth';
 import { WaterProgress } from './components/WaterProgress';
 import { Summary } from './components/Summary';
@@ -18,7 +22,7 @@ import {
 import { exportGroups, exportList } from './lib/export';
 import { fmtInt, plural } from './lib/fr';
 import { isoToDateInt, parseCodeList } from './lib/normalize';
-import type { Mapping, Progress, Results, SearchFile, WorkerIn, WorkerOut } from './lib/types';
+import type { InspectResult, Mapping, Progress, Results, SearchFile, WorkerIn, WorkerOut } from './lib/types';
 
 const SAMPLE_URL = `${import.meta.env.BASE_URL}exemple-permis.csv`;
 
@@ -40,6 +44,12 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('connexion');
   const { session, recovery, endRecovery } = useSession();
+  const chat = useChatState();
+  // Demandes du chat envoyées au même module de lecture que l'espace de travail
+  const pendingInspect = useRef(new Map<string, (r: InspectResult) => void>());
+  const pendingSearch = useRef(
+    new Map<string, { resolve: (r: Results) => void; reject: (e: Error) => void; onProgress: (pct: number) => void }>(),
+  );
   const [listSort, setListSort] = useState<{ key: ListKey; dir: Dir }>({ key: 'date', dir: 'desc' });
   const [groupSort, setGroupSort] = useState<{ key: GroupKey; dir: Dir }>({ key: 'latest', dir: 'desc' });
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -54,6 +64,25 @@ export default function App() {
     workerRef.current = w;
     w.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data;
+      // Réponses destinées au chat
+      if (m.type === 'inspected' && pendingInspect.current.has(m.id)) {
+        pendingInspect.current.get(m.id)!(m);
+        pendingInspect.current.delete(m.id);
+        return;
+      }
+      if (m.type !== 'inspected' && m.reqId) {
+        const p = pendingSearch.current.get(m.reqId);
+        if (!p) return;
+        if (m.type === 'progress') p.onProgress(Math.round((100 * m.bytesDone) / (m.bytesTotal || 1)));
+        else {
+          pendingSearch.current.delete(m.reqId);
+          if (m.type === 'done') {
+            const { type: _t, reqId: _r, ...res } = m;
+            p.resolve(res);
+          } else p.reject(new Error(m.type === 'error' ? m.message : 'Analyse arrêtée.'));
+        }
+        return;
+      }
       switch (m.type) {
         case 'inspected':
           setFiles((fs) =>
@@ -64,7 +93,7 @@ export default function App() {
           setProgress(m);
           break;
         case 'done': {
-          const { type: _t, ...r } = m;
+          const { type: _t, reqId: _r, ...r } = m;
           setResults(r);
           setRunId((x) => x + 1);
           setRunning(false);
@@ -174,6 +203,51 @@ export default function App() {
 
   const runningName = progress && ready[progress.fileIndex] ? ready[progress.fileIndex].file.name : '';
 
+  /** Analyse locale d'un fichier de permis pour l'assistant : seuls des totaux en sortent. */
+  const analyzeTabular: AnalyzeTabular = async (file, onProgress) => {
+    const id = `ai-i${nextId++}`;
+    const info = await new Promise<InspectResult>((resolve) => {
+      pendingInspect.current.set(id, resolve);
+      send({ type: 'inspect', id, file });
+    });
+    if (info.error) return { text: `Fichier « ${file.name} » : illisible (${info.error}).`, note: info.error };
+    const m = info.mapping;
+    if (m.commune == null || m.date == null) {
+      if (info.format === 'csv') {
+        const p = await fileAsText(file);
+        return { text: p.parts.map((x) => ('text' in x ? x.text : '')).join('\n'), note: p.note };
+      }
+      const preview = [info.headers, ...info.sample].map((r) => r.join(' ; ')).join('\n');
+      return {
+        text: `Fichier Excel « ${file.name} » (${fmtBytes(file.size)}), qui n'est pas une liste de permis reconnue. Colonnes et premières lignes :\n${preview}`,
+        note: `« ${file.name} » : seules les premières lignes sont envoyées à l'assistant.`,
+      };
+    }
+    const reqId = `ai-s${nextId++}`;
+    const r = await new Promise<Results>((resolve, reject) => {
+      pendingSearch.current.set(reqId, { resolve, reject, onProgress });
+      send({
+        type: 'search',
+        reqId,
+        files: [{ file, format: info.format, mapping: m, encoding: info.encoding, delimiter: info.delimiter, label: info.kind !== 'Autre' ? info.kind : file.name }],
+        filters: { from: 0, to: 0, communes: [], deps: [] },
+      });
+    });
+    return { text: statsForAI(r, `Fichier « ${file.name} » (${info.kind}, ${fmtBytes(file.size)}) : toutes dates, toutes communes.`) };
+  };
+
+  const workspaceContext = useMemo(
+    () =>
+      results
+        ? statsForAI(
+            results,
+            `Recherche de l'espace de travail (du ${filters.from || 'début'} au ${filters.to || "aujourd'hui"} ; communes : ${filters.communes || 'toutes'} ; départements : ${filters.deps || 'tous'}).`,
+          )
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [results],
+  );
+
   const authDialog = (
     <AuthDialog
       open={authOpen || recovery}
@@ -193,10 +267,9 @@ export default function App() {
           prenom={firstName(session)}
           email={session.user.email ?? ''}
           onOpenWorkspace={() => setShowWorkspace(true)}
-          onFiles={(list, rejected) => {
-            addFiles(list, rejected);
-            if (list.length) setShowWorkspace(true);
-          }}
+          chat={chat}
+          analyzeTabular={analyzeTabular}
+          workspaceContext={workspaceContext}
           onSample={() => {
             loadSample();
             setShowWorkspace(true);
