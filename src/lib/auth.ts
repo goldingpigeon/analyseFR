@@ -18,7 +18,13 @@ const urlError = (() => {
   const q = read(window.location.search);
   const code = h.get('error') || q.get('error');
   if (!code) return null;
-  return { code, desc: (h.get('error_description') || q.get('error_description') || code).replace(/\+/g, ' ') };
+  let desc = (h.get('error_description') || q.get('error_description') || code).replace(/\+/g, ' ');
+  try {
+    desc = decodeURIComponent(desc); // parfois encodé deux fois (%3A → :)
+  } catch {
+    /* déjà lisible */
+  }
+  return { code, desc };
 })();
 
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
