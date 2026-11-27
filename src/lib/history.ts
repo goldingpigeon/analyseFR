@@ -30,6 +30,11 @@ function fail(e: { message?: string; code?: string } | null): never {
   if (e?.code === '42P01' || e?.code === 'PGRST205' || /does not exist|could not find the table/i.test(msg)) {
     throw new HistoryError("L'historique n'est pas encore activé (table « conversations » absente dans Supabase).", true);
   }
+  if (e?.code === '42501' || /permission denied/i.test(msg)) {
+    throw new HistoryError(
+      "Historique indisponible : accès refusé à la table « conversations ». Dans Supabase → SQL Editor, exécutez : grant select, insert, update, delete on table public.conversations to authenticated;",
+    );
+  }
   throw new HistoryError(`Historique indisponible : ${msg || 'erreur inconnue'}`);
 }
 

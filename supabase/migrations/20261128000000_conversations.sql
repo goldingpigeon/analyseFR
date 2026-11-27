@@ -29,3 +29,9 @@ create policy "conversations: modification des siennes" on public.conversations
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "conversations: suppression des siennes" on public.conversations
   for delete to authenticated using (auth.uid() = user_id);
+
+-- Accès pour les utilisateurs connectés (les nouveaux projets Supabase ne l'accordent plus automatiquement).
+-- Les règles ci-dessus limitent toujours chacun à SES conversations.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on table public.conversations to authenticated;
+notify pgrst, 'reload schema';
