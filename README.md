@@ -30,7 +30,7 @@ Tout se passe dans votre navigateur : **aucun fichier n'est envoyé sur internet
 
 ## Installation
 
-Il faut [Node.js](https://nodejs.org) 20 ou plus récent.
+Il faut [Node.js](https://nodejs.org) 22.12.0 ou plus récent.
 
 ```bash
 npm install
