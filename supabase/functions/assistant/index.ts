@@ -4,7 +4,7 @@
 //
 // Secrets à définir dans Supabase (Edge Functions → Secrets) :
 //   GEMINI_API_KEY   (obligatoire) clé créée sur https://aistudio.google.com/apikey (« AIza… » ou « AQ.… »)
-//   GEMINI_MODEL     (facultatif)  par défaut « gemini-flash-latest » (toujours le Flash le plus récent)
+//   GEMINI_MODEL     (facultatif)  sinon « gemini-flash-latest », puis « gemini-flash-lite-latest » en secours
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -66,84 +66,71 @@ async function handle(req: Request): Promise<Response> {
   }
 
   // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur.
-  //    Toutes les clés AI Studio passent par l'API Gemini ; Vertex AI sert de secours.
+  //    Échéance stricte : la fonction répond toujours en moins de 25 s (bien sous les limites de Supabase).
+  const deadline = Date.now() + 25_000;
   const custom = clean(Deno.env.get('GEMINI_MODEL'));
-  // Réponse rapide : on demande peu de « réflexion » silencieuse avant d'écrire.
-  // Les modèles récents utilisent thinkingLevel ; si un modèle refuse ce réglage, on réessaie sans.
-  const body = (_m: string, fast: boolean) =>
+  const models = custom ? [custom] : ['gemini-flash-latest', 'gemini-flash-lite-latest']; // principal, puis secours plus léger
+  const url = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
+  const body = (fast: boolean) =>
     JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: messages,
+      // peu de « réflexion » silencieuse : la réponse commence plus vite
       generationConfig: { temperature: 0.4, ...(fast ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) },
     });
-  const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
-  const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
-  // Toutes les clés AI Studio (« AIza… » comme « AQ.… ») passent par l'API Gemini.
-  // Vertex AI n'est essayé que si Google y refuse la clé (clé créée dans Google Cloud).
-  const model = custom || 'gemini-flash-latest';
-  const BACKUP = 'gemini-flash-lite-latest'; // modèle plus léger, souvent moins chargé
-  const targets: [string, string][] = [[studio(model), model], [vertex(model), model]];
-  const busy = (st: number) => st === 503 || st === 429 || st === 500;
-  const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** Un appel à Google, abandonné à l'échéance. */
+  async function call(m: string, fast: boolean): Promise<Response | null> {
+    const left = deadline - Date.now();
+    if (left < 2_000) return null;
+    const ctl = new AbortController();
+    let timer: number | undefined;
+    try {
+      return await Promise.race([
+        fetch(url(m), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: body(fast), signal: ctl.signal }),
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => {
+            ctl.abort();
+            resolve(null);
+          }, left);
+        }),
+      ]);
+    } catch (e) {
+      console.error('appel Google', m, e);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   let upstream: Response | null = null;
   let detail = '';
-  attempts: for (const [url, m] of targets) {
-    for (const fast of [true, false]) {
-     for (let retry = 0; retry < 3; retry++) {
-      if (retry) await pause(retry === 1 ? 1000 : 3000); // Google surchargé : on patiente un peu
-      // Délai max de 30 s avant le début de la réponse (minuteur explicite, fiable sur Supabase).
-      const ctl = new AbortController();
-      let timer: number | undefined;
-      try {
-        upstream = await Promise.race([
-          fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-            body: body(m, fast),
-            signal: ctl.signal,
-          }),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => {
-              ctl.abort();
-              reject(new Error('délai dépassé'));
-            }, 30_000);
-          }),
-        ]);
-      } catch (e) {
-        console.error(url.split('?')[0], e);
-        return json(504, { error: 'Google met trop de temps à répondre (plus de 30 s). Réessayez dans un instant.' });
-      } finally {
-        clearTimeout(timer);
-      }
-      if (upstream.ok && upstream.body) break attempts;
+  let status = 0;
+  for (const m of models) {
+    upstream = await call(m, true);
+    if (upstream && !upstream.ok && upstream.status === 400) {
       detail = await upstream.text().catch(() => '');
-      console.error(url.split('?')[0], m, fast ? '(rapide)' : '', `essai ${retry + 1}`, upstream.status, detail.slice(0, 300));
-      if (busy(upstream.status)) continue; // surcharge : nouvel essai
-      break;
-     }
-      // Réglage de réflexion non pris en charge par ce modèle : on réessaie sans.
-      if (fast && upstream!.status === 400 && /thinking/i.test(detail)) continue;
-      break;
+      // ce modèle ne connaît pas le réglage de réflexion : même appel sans
+      upstream = /thinking/i.test(detail) ? await call(m, false) : new Response(detail, { status: 400 });
     }
-    // Toujours surchargé : on passe au modèle de secours (une seule fois, sur le même service).
-    if (busy(upstream!.status) && !custom && m !== BACKUP) {
-      targets.splice(targets.indexOf(targets.find(([u]) => u === url)!) + 1, 0, [url.replace(`/models/${m}:`, `/models/${BACKUP}:`), BACKUP]);
-      continue;
-    }
-    // Clé refusée par ce service : on essaie l'autre. Sinon (quota, modèle…) on s'arrête.
-    if (![400, 401, 403].includes(upstream!.status) || !/key|credential|auth|permission/i.test(detail)) break;
+    if (upstream?.ok && upstream.body) break;
+    status = upstream?.status ?? 504;
+    detail = upstream ? await upstream.text().catch(() => '') : 'délai dépassé';
+    console.error('Gemini', m, status, detail.slice(0, 300));
+    const overloaded = status === 503 || status === 500 || status === 504 || status === 429;
+    if (!overloaded) break; // clé, modèle… : inutile d'essayer le secours
   }
-  if (!upstream || !upstream.ok || !upstream.body) {
-    const st = upstream?.status ?? 0;
-    let msg = `Google a répondu avec une erreur (${st}).`;
-    if (st === 503 || st === 500) msg = 'Les serveurs de Google sont très sollicités en ce moment. Réessayez dans une minute.';
-    else if (st === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
-    else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'Google refuse la clé GEMINI_API_KEY. Recopiez-la depuis aistudio.google.com/apikey (bouton « Copier la clé »).';
-    else if (st === 403 && /permission|disabled|not been used/i.test(detail)) msg = "La clé n'a pas accès à l'API Gemini (API désactivée sur le projet Google ?).";
-    else if (st === 404) msg = `Le modèle « ${model} » est introuvable. Ajoutez le secret GEMINI_MODEL avec un nom de modèle listé dans AI Studio.`;
-    const m = detail.match(/"message":\s*"([^"]{1,200})/);
-    if (m && !/Limite|sollicités/.test(msg)) msg += ` Détail : ${m[1]}`;
+
+  if (!upstream?.ok || !upstream.body) {
+    let msg = `Google a répondu avec une erreur (${status}).`;
+    if (status === 503 || status === 500 || status === 504) msg = 'Google est surchargé en ce moment. Réessayez dans une minute.';
+    else if (status === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
+    else if ([400, 401, 403].includes(status) && /key|credential|auth|permission/i.test(detail)) msg = 'Google refuse la clé GEMINI_API_KEY. Recopiez-la depuis aistudio.google.com/apikey (bouton « Copier la clé »).';
+    else if (status === 404) msg = 'Modèle introuvable. Ajoutez le secret GEMINI_MODEL avec un nom de modèle listé dans AI Studio.';
+    else {
+      const d = detail.match(/"message":\s*"([^"]{1,200})/);
+      if (d) msg += ` Détail : ${d[1]}`;
+    }
     return json(502, { error: msg });
   }
 

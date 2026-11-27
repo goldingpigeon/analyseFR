@@ -1,0 +1,36 @@
+name: Déployer la fonction assistant (Supabase)
+
+# Déploie automatiquement supabase/functions/assistant dans Supabase à chaque modification.
+# À faire une seule fois : ajouter le secret de dépôt SUPABASE_ACCESS_TOKEN
+# (Settings → Secrets and variables → Actions → onglet Secrets).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-function
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'qnbylltdtenhhriqugqd' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier le jeton
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Ajoutez le secret SUPABASE_ACCESS_TOKEN (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Déployer « assistant »
+        run: supabase functions deploy assistant --project-ref "$PROJECT_REF" --no-verify-jwt

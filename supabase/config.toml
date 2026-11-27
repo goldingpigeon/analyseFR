@@ -1,0 +1,6 @@
+# Configuration minimale pour déployer la fonction « assistant » depuis GitHub Actions.
+project_id = "permis-construire"
+
+[functions.assistant]
+# La fonction vérifie elle-même que l'utilisateur est connecté.
+verify_jwt = false

@@ -97,8 +97,10 @@ Une fois connecté, la zone « Quoi de neuf ? » est un chat. On peut y joindre 
 Installation (une seule fois) :
 
 1. Créez une clé sur https://aistudio.google.com/apikey.
-2. Supabase → **Edge Functions → Deploy a new function → Via Editor**, nommez-la `assistant`,
-   collez le contenu de `supabase/functions/assistant/index.ts`, puis **Deploy**.
+2. Déploiement automatique : créez un jeton sur https://supabase.com/dashboard/account/tokens et
+   ajoutez-le dans GitHub (**Settings → Secrets and variables → Actions → Secrets**) sous le nom
+   `SUPABASE_ACCESS_TOKEN`. Le workflow « Déployer la fonction assistant » envoie ensuite
+   `supabase/functions/assistant` dans Supabase à chaque modification.
 3. Supabase → **Edge Functions → Secrets** : ajoutez `GEMINI_API_KEY` (et, si besoin,
    `GEMINI_MODEL`, par défaut `gemini-flash-latest`).
 
