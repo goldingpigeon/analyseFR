@@ -3,8 +3,9 @@
 // Seuls les utilisateurs connectés peuvent l'appeler.
 //
 // Secrets à définir dans Supabase (Edge Functions → Secrets) :
-//   GEMINI_API_KEY   (obligatoire) clé créée sur https://aistudio.google.com/apikey
-//   GEMINI_MODEL     (facultatif)  par défaut « gemini-flash-latest »
+//   GEMINI_API_KEY   (obligatoire) clé Google AI Studio (« AIza… », https://aistudio.google.com/apikey)
+//                    ou clé Vertex AI en mode express (« AQ.… »)
+//   GEMINI_MODEL     (facultatif)  par défaut « gemini-flash-latest » (AI Studio) / « gemini-2.5-flash » (Vertex)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -56,7 +57,7 @@ async function handle(req: Request): Promise<Response> {
   // 2. Lire la conversation
   const key = clean(Deno.env.get('GEMINI_API_KEY'));
   if (!key) return json(500, { error: "La clé GEMINI_API_KEY n'est pas configurée dans Supabase." });
-  if (!/^[A-Za-z0-9_\-]{20,}$/.test(key)) {
+  if (!/^[A-Za-z0-9_.\-]{20,}$/.test(key)) {
     return json(500, { error: 'La clé GEMINI_API_KEY semble mal copiée (caractères inattendus). Recopiez-la depuis aistudio.google.com/apikey.' });
   }
   let messages: Msg[];
@@ -67,27 +68,39 @@ async function handle(req: Request): Promise<Response> {
     return json(400, { error: 'Requête invalide.' });
   }
 
-  // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur
-  const model = clean(Deno.env.get('GEMINI_MODEL')) || 'gemini-flash-latest';
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents: messages,
-        generationConfig: { temperature: 0.4 },
-      }),
-    },
-  );
-  if (!upstream.ok || !upstream.body) {
-    const detail = await upstream.text().catch(() => '');
-    let msg = `Gemini a répondu avec une erreur (${upstream.status}).`;
-    if (upstream.status === 429) msg = 'Limite d’utilisation de Gemini atteinte. Réessayez dans une minute.';
-    if (upstream.status === 400 && /API key/i.test(detail)) msg = 'La clé GEMINI_API_KEY est invalide.';
-    if (upstream.status === 404) msg = `Le modèle « ${model} » est introuvable. Changez le secret GEMINI_MODEL.`;
-    console.error(upstream.status, detail.slice(0, 500));
+  // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur.
+  //    Clé « AIza… » → API Gemini (AI Studio). Clé « AQ.… » → Vertex AI (mode express).
+  const custom = clean(Deno.env.get('GEMINI_MODEL'));
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: messages,
+    generationConfig: { temperature: 0.4 },
+  });
+  const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
+  const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
+  const targets = key.startsWith('AQ.')
+    ? [vertex(custom || 'gemini-2.5-flash'), studio(custom || 'gemini-flash-latest')]
+    : [studio(custom || 'gemini-flash-latest'), vertex(custom || 'gemini-2.5-flash')];
+
+  let upstream: Response | null = null;
+  let detail = '';
+  for (const url of targets) {
+    upstream = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body });
+    if (upstream.ok && upstream.body) break;
+    detail = await upstream.text().catch(() => '');
+    console.error(url.split('?')[0], upstream.status, detail.slice(0, 500));
+    // Clé refusée par ce service : on essaie l'autre. Sinon (quota, modèle…) on s'arrête.
+    if (![400, 401, 403].includes(upstream.status) || !/key|credential|auth|permission/i.test(detail)) break;
+  }
+  if (!upstream || !upstream.ok || !upstream.body) {
+    const st = upstream?.status ?? 0;
+    let msg = `Google a répondu avec une erreur (${st}).`;
+    if (st === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
+    else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'La clé GEMINI_API_KEY est refusée par Google. Créez une clé sur aistudio.google.com/apikey (elle commence par « AIza »).';
+    else if (st === 403 && /permission|disabled|not been used/i.test(detail)) msg = "La clé n'a pas accès à l'API Gemini (API désactivée sur le projet Google ?).";
+    else if (st === 404) msg = 'Modèle introuvable. Ajoutez le secret GEMINI_MODEL (par ex. gemini-2.5-flash).';
+    const m = detail.match(/"message":\s*"([^"]{1,200})/);
+    if (m && !msg.includes('Limite')) msg += ` Détail : ${m[1]}`;
     return json(502, { error: msg });
   }
 
