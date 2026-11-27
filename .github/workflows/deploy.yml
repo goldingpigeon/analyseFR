@@ -27,9 +27,11 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
-          # Connexion (facultatif) : Settings → Secrets and variables → Actions → Variables
-          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          # Connexion via Supabase. Ces deux valeurs sont publiques par conception
+          # (URL du projet + clé « publishable »). Une variable de dépôt du même nom les remplace.
+          # Ne JAMAIS mettre ici une clé secrète (sb_secret_… / service_role).
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qnbylltdtenhhriqugqd.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_TxEWkaIyyBcYr-MZbNHZ1g_H4Ft0KJ1' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
