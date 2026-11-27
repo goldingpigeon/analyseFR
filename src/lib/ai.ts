@@ -33,7 +33,10 @@ export async function askAssistant(messages: ApiMsg[], onDelta: (text: string) =
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
-    throw new Error("Impossible de joindre l'assistant. Vérifiez votre connexion internet.");
+    if (!navigator.onLine) throw new Error("Vous semblez hors ligne. Vérifiez votre connexion internet.");
+    throw new Error(
+      "Impossible de joindre l'assistant. Dans Supabase, vérifiez que la fonction s'appelle exactement « assistant », qu'elle est bien déployée, et que l'option « Verify JWT » est désactivée.",
+    );
   }
   if (!res.ok || !res.body) {
     if (res.status === 404) throw new Error("L'assistant n'est pas encore installé (fonction Supabase « assistant » introuvable).");
