@@ -27,24 +27,38 @@ Règles :
 type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
 type Msg = { role: 'user' | 'model'; parts: Part[] };
 
+/** Nettoie une clé collée avec des espaces, retours à la ligne ou guillemets autour. */
+const clean = (v: string | null | undefined) => (v ?? '').trim().replace(/^["'`]+|["'`]+$/g, '').replace(/[^\x21-\x7E]/g, '');
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'Méthode non autorisée.' });
+  try {
+    return await handle(req);
+  } catch (e) {
+    console.error(e);
+    return json(500, { error: `Erreur interne de l'assistant : ${(e as Error).message ?? e}` });
+  }
+});
 
+async function handle(req: Request): Promise<Response> {
   // 1. Vérifier que l'utilisateur est connecté
-  const auth = req.headers.get('Authorization') ?? '';
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? req.headers.get('apikey') ?? '';
+  const auth = (req.headers.get('Authorization') ?? '').trim();
+  const supabaseUrl = clean(Deno.env.get('SUPABASE_URL'));
+  const anonKey = clean(Deno.env.get('SUPABASE_ANON_KEY')) || clean(req.headers.get('apikey'));
   if (!auth.startsWith('Bearer ') || !supabaseUrl) return json(401, { error: 'Connectez-vous pour utiliser l’assistant.' });
   const who = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { Authorization: auth, apikey: anonKey } });
   if (!who.ok) return json(401, { error: 'Session expirée : reconnectez-vous.' });
 
   // 2. Lire la conversation
-  const key = Deno.env.get('GEMINI_API_KEY');
+  const key = clean(Deno.env.get('GEMINI_API_KEY'));
   if (!key) return json(500, { error: "La clé GEMINI_API_KEY n'est pas configurée dans Supabase." });
+  if (!/^[A-Za-z0-9_\-]{20,}$/.test(key)) {
+    return json(500, { error: 'La clé GEMINI_API_KEY semble mal copiée (caractères inattendus). Recopiez-la depuis aistudio.google.com/apikey.' });
+  }
   let messages: Msg[];
   try {
     ({ messages } = await req.json());
@@ -54,7 +68,7 @@ Deno.serve(async (req) => {
   }
 
   // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur
-  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest';
+  const model = clean(Deno.env.get('GEMINI_MODEL')) || 'gemini-flash-latest';
   const upstream = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
     {
@@ -111,4 +125,4 @@ Deno.serve(async (req) => {
     },
   });
   return new Response(stream, { headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' } });
-});
+}
