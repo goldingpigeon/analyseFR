@@ -60,14 +60,7 @@ Le site prêt à publier est créé dans le dossier `dist/`. Pour le tester loca
 npm run preview
 ```
 
-### En ligne (GitHub Pages)
-
-Chaque envoi sur la branche `main` publie automatiquement le site sur
-**https://goldingpigeon.github.io/permis-construire/** (workflow
-`.github/workflows/deploy.yml`). À faire une seule fois : dans le dépôt GitHub,
-**Settings → Pages → Source : GitHub Actions**.
-
-Le contenu de `dist/` peut aussi être hébergé sur n'importe quel hébergeur de fichiers statiques
+Le contenu de `dist/` peut être hébergé sur n'importe quel hébergeur de fichiers statiques
 (Netlify, GitHub Pages, un simple serveur web…).
 
 ## Où trouver les fichiers
