@@ -4,7 +4,7 @@
 //
 // Secrets à définir dans Supabase (Edge Functions → Secrets) :
 //   GEMINI_API_KEY   (obligatoire) clé créée sur https://aistudio.google.com/apikey (« AIza… » ou « AQ.… »)
-//   GEMINI_MODEL     (facultatif)  par défaut « gemini-2.5-flash »
+//   GEMINI_MODEL     (facultatif)  par défaut « gemini-flash-latest » (toujours le Flash le plus récent)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -68,52 +68,58 @@ async function handle(req: Request): Promise<Response> {
   // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur.
   //    Toutes les clés AI Studio passent par l'API Gemini ; Vertex AI sert de secours.
   const custom = clean(Deno.env.get('GEMINI_MODEL'));
-  // Réponse rapide : pas de « réflexion » silencieuse pour les modèles 2.5 Flash.
-  const body = (m: string) =>
+  // Réponse rapide : on demande peu de « réflexion » silencieuse avant d'écrire.
+  // Les modèles récents utilisent thinkingLevel ; si un modèle refuse ce réglage, on réessaie sans.
+  const body = (_m: string, fast: boolean) =>
     JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: messages,
-      generationConfig: { temperature: 0.4, ...(/2\.5-flash/.test(m) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+      generationConfig: { temperature: 0.4, ...(fast ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) },
     });
   const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
   const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
   // Toutes les clés AI Studio (« AIza… » comme « AQ.… ») passent par l'API Gemini.
   // Vertex AI n'est essayé que si Google y refuse la clé (clé créée dans Google Cloud).
-  const model = custom || 'gemini-2.5-flash';
+  const model = custom || 'gemini-flash-latest';
   const targets: [string, string][] = [[studio(model), model], [vertex(model), model]];
 
   let upstream: Response | null = null;
   let detail = '';
-  for (const [url, m] of targets) {
-    // Délai max de 30 s avant le début de la réponse (minuteur explicite, fiable sur Supabase).
-    const ctl = new AbortController();
-    let timer: number | undefined;
-    try {
-      upstream = await Promise.race([
-        fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-          body: body(m),
-          signal: ctl.signal,
-        }),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            ctl.abort();
-            reject(new Error('délai dépassé'));
-          }, 30_000);
-        }),
-      ]);
-    } catch (e) {
-      console.error(url.split('?')[0], e);
-      return json(504, { error: 'Google met trop de temps à répondre (plus de 30 s). Réessayez dans un instant.' });
-    } finally {
-      clearTimeout(timer);
+  attempts: for (const [url, m] of targets) {
+    for (const fast of [true, false]) {
+      // Délai max de 30 s avant le début de la réponse (minuteur explicite, fiable sur Supabase).
+      const ctl = new AbortController();
+      let timer: number | undefined;
+      try {
+        upstream = await Promise.race([
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+            body: body(m, fast),
+            signal: ctl.signal,
+          }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              ctl.abort();
+              reject(new Error('délai dépassé'));
+            }, 30_000);
+          }),
+        ]);
+      } catch (e) {
+        console.error(url.split('?')[0], e);
+        return json(504, { error: 'Google met trop de temps à répondre (plus de 30 s). Réessayez dans un instant.' });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (upstream.ok && upstream.body) break attempts;
+      detail = await upstream.text().catch(() => '');
+      console.error(url.split('?')[0], m, fast ? '(rapide)' : '', upstream.status, detail.slice(0, 500));
+      // Réglage de réflexion non pris en charge par ce modèle : on réessaie sans.
+      if (fast && upstream.status === 400 && /thinking/i.test(detail)) continue;
+      break;
     }
-    if (upstream.ok && upstream.body) break;
-    detail = await upstream.text().catch(() => '');
-    console.error(url.split('?')[0], upstream.status, detail.slice(0, 500));
     // Clé refusée par ce service : on essaie l'autre. Sinon (quota, modèle…) on s'arrête.
-    if (![400, 401, 403].includes(upstream.status) || !/key|credential|auth|permission/i.test(detail)) break;
+    if (![400, 401, 403].includes(upstream!.status) || !/key|credential|auth|permission/i.test(detail)) break;
   }
   if (!upstream || !upstream.ok || !upstream.body) {
     const st = upstream?.status ?? 0;
@@ -121,7 +127,7 @@ async function handle(req: Request): Promise<Response> {
     if (st === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
     else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'Google refuse la clé GEMINI_API_KEY. Recopiez-la depuis aistudio.google.com/apikey (bouton « Copier la clé »).';
     else if (st === 403 && /permission|disabled|not been used/i.test(detail)) msg = "La clé n'a pas accès à l'API Gemini (API désactivée sur le projet Google ?).";
-    else if (st === 404) msg = 'Modèle introuvable. Ajoutez le secret GEMINI_MODEL (par ex. gemini-2.5-flash).';
+    else if (st === 404) msg = `Le modèle « ${model} » est introuvable. Ajoutez le secret GEMINI_MODEL avec un nom de modèle listé dans AI Studio.`;
     const m = detail.match(/"message":\s*"([^"]{1,200})/);
     if (m && !msg.includes('Limite')) msg += ` Détail : ${m[1]}`;
     return json(502, { error: msg });
