@@ -31,7 +31,7 @@ export const supabase: SupabaseClient | null = url && key ? createClient(url, ke
 export const authEnabled = supabase !== null;
 
 /** Adresse où renvoient les e-mails de confirmation et de réinitialisation. */
-const redirectTo = () => `${window.location.origin}${import.meta.env.BASE_URL}`;
+const redirectTo = () => new URL(import.meta.env.BASE_URL, window.location.href.split(/[?#]/)[0]).href;
 
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);

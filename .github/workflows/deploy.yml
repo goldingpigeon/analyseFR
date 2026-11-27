@@ -26,8 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Dépôt « <nom>.github.io » → site à la racine ; sinon sous /<dépôt>/
-          BASE_PATH: ${{ github.event.repository.name == format('{0}.github.io', github.repository_owner) && '/' || format('/{0}/', github.event.repository.name) }}
+          # Chemins relatifs : fonctionne quel que soit le nom du dépôt ou l'adresse du site.
+          BASE_PATH: ./
           # Connexion via Supabase. Ces deux valeurs sont publiques par conception
           # (URL du projet + clé « publishable »). Une variable de dépôt du même nom les remplace.
           # Ne JAMAIS mettre ici une clé secrète (sb_secret_… / service_role).

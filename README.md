@@ -70,7 +70,7 @@ fonctionne normalement et le bouton « Se connecter » indique que la connexion 
 
 1. Créez un projet sur supabase.com.
 2. **Authentication → URL Configuration** : *Site URL* =
-   `https://goldingpigeon.github.io/permis-construire/` (ajoutez-la aussi dans *Redirect URLs*).
+   `https://goldingpigeon.github.io/analyseFR/` (ajoutez-la aussi dans *Redirect URLs*).
 3. **Project Settings → API** : copiez la *Project URL* et la clé *anon public*.
 4. Dans GitHub : **Settings → Secrets and variables → Actions → onglet Variables**, créez
    `SUPABASE_URL` et `SUPABASE_ANON_KEY`, puis relancez le workflow « Publier sur GitHub Pages ».
