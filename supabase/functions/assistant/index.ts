@@ -55,11 +55,9 @@ async function handle(req: Request): Promise<Response> {
   if (!who.ok) return json(401, { error: 'Session expirée : reconnectez-vous.' });
 
   // 2. Lire la conversation
-  const key = clean(Deno.env.get('GEMINI_API_KEY'));
+  // (on retire aussi un éventuel « GEMINI_API_KEY= » collé avec la valeur)
+  const key = clean(Deno.env.get('GEMINI_API_KEY')).replace(/^GEMINI_API_KEY[:=]/i, '');
   if (!key) return json(500, { error: "La clé GEMINI_API_KEY n'est pas configurée dans Supabase." });
-  if (!/^[A-Za-z0-9_.\-]{20,}$/.test(key)) {
-    return json(500, { error: 'La clé GEMINI_API_KEY semble mal copiée (caractères inattendus). Recopiez-la depuis aistudio.google.com/apikey.' });
-  }
   let messages: Msg[];
   try {
     ({ messages } = await req.json());
@@ -71,21 +69,33 @@ async function handle(req: Request): Promise<Response> {
   // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur.
   //    Clé « AIza… » → API Gemini (AI Studio). Clé « AQ.… » → Vertex AI (mode express).
   const custom = clean(Deno.env.get('GEMINI_MODEL'));
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: messages,
-    generationConfig: { temperature: 0.4 },
-  });
+  // Réponse rapide : pas de « réflexion » silencieuse pour les modèles 2.5 Flash.
+  const body = (m: string) =>
+    JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: messages,
+      generationConfig: { temperature: 0.4, ...(/2\.5-flash/.test(m) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+    });
   const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
   const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
-  const targets = key.startsWith('AQ.')
-    ? [vertex(custom || 'gemini-2.5-flash'), studio(custom || 'gemini-flash-latest')]
-    : [studio(custom || 'gemini-flash-latest'), vertex(custom || 'gemini-2.5-flash')];
+  const targets: [string, string][] = key.startsWith('AQ.')
+    ? [[vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash'], [studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest']]
+    : [[studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest'], [vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash']];
 
   let upstream: Response | null = null;
   let detail = '';
-  for (const url of targets) {
-    upstream = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body });
+  for (const [url, m] of targets) {
+    try {
+      upstream = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: body(m),
+        signal: AbortSignal.timeout(45_000), // délai max avant le début de la réponse
+      });
+    } catch (e) {
+      console.error(url.split('?')[0], e);
+      return json(504, { error: 'Google met trop de temps à répondre (plus de 45 s). Réessayez dans un instant.' });
+    }
     if (upstream.ok && upstream.body) break;
     detail = await upstream.text().catch(() => '');
     console.error(url.split('?')[0], upstream.status, detail.slice(0, 500));

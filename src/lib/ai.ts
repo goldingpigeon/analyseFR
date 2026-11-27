@@ -45,10 +45,23 @@ export async function askAssistant(messages: ApiMsg[], onDelta: (text: string) =
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
+  // Si plus rien n'arrive pendant 60 s, on abandonne avec un message clair.
+  const STALL_MS = 60_000;
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onDelta(dec.decode(value, { stream: true }));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("L'assistant ne répond plus (aucune donnée depuis 60 s). Réessayez.")), STALL_MS);
+    });
+    try {
+      const { done, value } = await Promise.race([reader.read(), stalled]);
+      if (done) break;
+      onDelta(dec.decode(value, { stream: true }));
+    } catch (e) {
+      reader.cancel().catch(() => {});
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
