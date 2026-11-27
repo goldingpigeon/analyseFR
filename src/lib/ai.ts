@@ -85,11 +85,11 @@ function trimInline(messages: ApiMsg[]): ApiMsg[] {
 
 const TABULAR = /\.(csv|tsv|xlsx|xls|xlsm)$/i;
 const TEXT_EXT = /\.(txt|md|markdown|json|xml|html?|js|ts|tsx|jsx|py|sql|yaml|yml|log|ini|cfg|geojson|kml|gpx|rtf|tex)$/i;
-const INLINE_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|audio\/|video\/)/;
+// Fichiers lisibles directement par l'IA (Mistral) : PDF et images.
+const INLINE_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|gif))/;
 const EXT_MIME: Record<string, string> = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
-  heic: 'image/heic', heif: 'image/heif', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg',
-  flac: 'audio/flac', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+  gif: 'image/gif',
 };
 
 export const isTabular = (f: File) => TABULAR.test(f.name);
@@ -125,7 +125,7 @@ export async function prepareFile(file: File): Promise<Prepared> {
 
   return {
     parts: [{ text: `${header.text} Format non lisible par l'assistant.` }],
-    note: `« ${file.name} » : ce format ne peut pas être lu par l'assistant (essayez PDF, image, texte, CSV ou Excel).`,
+    note: `« ${file.name} » : ce format ne peut pas être lu par l'assistant (formats acceptés : PDF, image, texte, CSV ou Excel).`,
   };
 }
 

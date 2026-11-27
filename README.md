@@ -85,26 +85,26 @@ VITE_SUPABASE_ANON_KEY=votre-cle-anon
 Seuls le prénom et l'adresse e-mail sont enregistrés chez Supabase. Les fichiers analysés
 ne quittent jamais l'appareil.
 
-## Assistant IA (Google Gemini)
+## Assistant IA (Mistral AI)
 
 Une fois connecté, la zone « Quoi de neuf ? » est un chat. On peut y joindre n'importe quel fichier :
 
 - **CSV / Excel de permis** : analysés sur l'appareil par l'application ; seuls des totaux
   (par commune, mois, département, type) sont envoyés à l'IA. Aucun nom, SIREN ni n° de permis.
-- **PDF, images, audio, vidéo** (15 Mo max) et **fichiers texte** : envoyés à Gemini.
+- **PDF, images** (15 Mo max) et **fichiers texte** : envoyés à Mistral AI.
 - Les résultats affichés dans l'espace de travail servent aussi de contexte.
 
 Installation (une seule fois) :
 
-1. Créez une clé sur https://aistudio.google.com/apikey.
+1. Créez une clé sur https://console.mistral.ai/api-keys.
 2. Déploiement automatique : créez un jeton sur https://supabase.com/dashboard/account/tokens et
    ajoutez-le dans GitHub (**Settings → Secrets and variables → Actions → Secrets**) sous le nom
    `SUPABASE_ACCESS_TOKEN`. Le workflow « Déployer la fonction assistant » envoie ensuite
    `supabase/functions/assistant` dans Supabase à chaque modification.
-3. Supabase → **Edge Functions → Secrets** : ajoutez `GEMINI_API_KEY` (et, si besoin,
-   `GEMINI_MODEL`, par défaut `gemini-flash-latest`).
+3. Supabase → **Edge Functions → Secrets** : ajoutez `MISTRAL_API_KEY` (et, si besoin,
+   `AI_MODEL`, par défaut `mistral-medium-latest`). Une clé `GEMINI_API_KEY` reste possible à la place.
 
-La clé Gemini reste dans Supabase ; seuls les utilisateurs connectés peuvent appeler l'assistant.
+La clé reste dans Supabase ; seuls les utilisateurs connectés peuvent appeler l'assistant.
 
 ## Où trouver les fichiers
 
