@@ -10,6 +10,17 @@ import { useEffect, useState } from 'react';
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
+// Erreur de connexion (Google) présente dans l'adresse : capturée AVANT que Supabase ne lise l'adresse.
+const urlError = (() => {
+  if (typeof window === 'undefined') return null;
+  const read = (str: string) => new URLSearchParams(str.replace(/^[#?]/, ''));
+  const h = read(window.location.hash);
+  const q = read(window.location.search);
+  const code = h.get('error') || q.get('error');
+  if (!code) return null;
+  return { code, desc: (h.get('error_description') || q.get('error_description') || code).replace(/\+/g, ' ') };
+})();
+
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
 export const authEnabled = supabase !== null;
 
@@ -34,6 +45,24 @@ export function useSession() {
     return () => data.subscription.unsubscribe();
   }, []);
   return { session, loading, recovery, endRecovery: () => setRecovery(false) };
+}
+
+/**
+ * Erreur renvoyée par Supabase dans l'adresse après une connexion Google ratée
+ * (#error=…&error_description=… ou ?error=…). On la lit une fois puis on nettoie l'adresse.
+ */
+export function takeAuthError(): string | null {
+  if (!urlError) return null;
+  const { code, desc } = urlError;
+  if (window.location.hash.includes('error') || window.location.search.includes('error')) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+  const d = desc.toLowerCase();
+  if (d.includes('exchange external code') || d.includes('invalid_client') || d.includes('unauthorized'))
+    return `Connexion Google refusée : l'identifiant ou le « Client secret » Google saisi dans Supabase est incorrect. (${desc})`;
+  if (d.includes('database error')) return `Connexion Google : Supabase n'a pas pu créer le compte. (${desc})`;
+  if (d.includes('access_denied') || code === 'access_denied') return 'Connexion Google annulée.';
+  return `La connexion Google a échoué : ${desc}`;
 }
 
 export function firstName(session: Session | null): string {

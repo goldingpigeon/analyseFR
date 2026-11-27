@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChatPanel, type AnalyzeTabular, type ChatState } from './Chat';
 import { Sidebar } from './Sidebar';
+import { Quark } from './Quark';
 import { pickGreeting } from '../lib/greetings';
 
 /** Accueil après connexion : historique à gauche, message d'accueil varié et chat. */
@@ -109,7 +110,7 @@ export function HomeGreeting({
               >
                 {menuIcon}
               </button>
-              <span className="font-display text-sm font-medium tracking-[0.16em] text-white">KHEIDRI ASSISTANT</span>
+              <Quark active={false} size={28} />
             </div>
             <div className="relative">
               <button

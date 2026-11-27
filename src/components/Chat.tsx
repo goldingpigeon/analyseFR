@@ -346,8 +346,8 @@ export function ChatPanel({
               send();
             }
           }}
-          placeholder={over ? 'Lâchez vos fichiers ici…' : messages.length ? 'Répondre…' : 'Demandez à Kheidri Assistant, ou déposez n’importe quel fichier…'}
-          aria-label="Message pour Kheidri Assistant"
+          placeholder={over ? 'Lâchez vos fichiers ici…' : messages.length ? 'Répondre…' : 'Posez une question, ou déposez n’importe quel fichier…'}
+          aria-label="Message pour l'assistant"
           className="block w-full resize-none bg-transparent px-2 pt-1.5 text-base text-white outline-none placeholder:text-mist sm:text-lg"
         />
         <div className="mt-2 flex items-center justify-between gap-3">
@@ -395,7 +395,7 @@ export function ChatPanel({
         />
       </motion.div>
       <p className="mt-3 text-center text-[11px] leading-5 text-mist/80">
-        Kheidri Assistant peut se tromper : vérifiez les chiffres importants. Les fichiers CSV et Excel de permis sont analysés sur votre appareil ;
+        L'assistant peut se tromper : vérifiez les chiffres importants. Les fichiers CSV et Excel de permis sont analysés sur votre appareil ;
         seuls des totaux sont envoyés. Les autres fichiers joints sont envoyés au service d'IA (Google Gemini).
       </p>
     </div>
@@ -436,7 +436,6 @@ function Message({ m }: { m: ChatMsg }) {
         <Quark active={active || typing} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs font-medium tracking-wide text-white/60">Kheidri Assistant</p>
         {m.status === 'thinking' && !m.text ? (
           <p className="thinking-text pt-0.5 text-[15px]">{m.phase || 'Réflexion…'}</p>
         ) : m.status === 'error' ? (

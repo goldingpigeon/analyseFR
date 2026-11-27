@@ -17,7 +17,10 @@ export function AuthDialog({
   onClose,
   onDone,
   inline = false,
+  initialError = null,
 }: {
+  /** Erreur à afficher dès l'ouverture (ex. retour de Google en échec). */
+  initialError?: string | null;
   /** Affichée comme une page (écran de connexion) plutôt qu'en fenêtre. */
   inline?: boolean;
   open: boolean;
@@ -31,7 +34,7 @@ export function AuthDialog({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [info, setInfo] = useState<string | null>(null);
   const [google, setGoogle] = useState<boolean | null>(null);
 
@@ -58,11 +61,11 @@ export function AuthDialog({
   useEffect(() => {
     if (open) {
       setMode(initialMode);
-      setError(null);
+      setError(initialError);
       setInfo(null);
       setPassword('');
     }
-  }, [open, initialMode]);
+  }, [open, initialMode, initialError]);
 
   useEffect(() => {
     if (!open || inline) return;

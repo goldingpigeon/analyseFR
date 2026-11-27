@@ -11,7 +11,7 @@ import { useChatState, type AnalyzeTabular } from './components/Chat';
 import { statsForAI } from './lib/aiContext';
 import { fileAsText } from './lib/ai';
 import { fmtBytes } from './lib/fr';
-import { authEnabled, firstName, signOut, useSession } from './lib/auth';
+import { authEnabled, firstName, signOut, takeAuthError, useSession } from './lib/auth';
 import { Quark } from './components/Quark';
 import { WaterProgress } from './components/WaterProgress';
 import { Summary } from './components/Summary';
@@ -46,6 +46,8 @@ export default function App() {
   const [authMode, setAuthMode] = useState<AuthMode>('connexion');
   const { session, loading: sessionLoading, recovery, endRecovery } = useSession();
   const chat = useChatState(session?.user.id ?? null);
+  // erreur éventuelle au retour de Google (lue une seule fois, au chargement)
+  const [oauthError] = useState(() => (authEnabled ? takeAuthError() : null));
   // Demandes du chat envoyées au même module de lecture que l'espace de travail
   const pendingInspect = useRef(new Map<string, (r: InspectResult) => void>());
   const pendingSearch = useRef(
@@ -309,7 +311,6 @@ export default function App() {
         <div className="landing-page flex min-h-dvh flex-col px-5 text-foam sm:px-8">
           <header className="mx-auto flex w-full max-w-5xl items-center gap-3 border-b border-white/10 py-5">
             <Quark active={false} size={30} />
-            <span className="font-display text-sm font-medium tracking-[0.16em] text-white">KHEIDRI ASSISTANT</span>
           </header>
           <main className="flex flex-1 flex-col items-center justify-center py-10">
             <motion.p
@@ -318,12 +319,13 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              Connectez-vous pour discuter avec Kheidri Assistant et retrouver vos conversations.
+              Connectez-vous pour discuter avec l’assistant et retrouver vos conversations.
             </motion.p>
             <motion.div className="w-full max-w-md" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
               <AuthDialog
                 inline
                 open
+                initialError={oauthError}
                 mode={recovery ? 'nouveau' : 'connexion'}
                 onClose={() => {}}
                 onDone={() => endRecovery()}
