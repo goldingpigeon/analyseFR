@@ -8,9 +8,9 @@ export function Header({ onHome }: { onHome: () => void }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       >
-        <p className="text-xs tracking-[0.18em] text-mist uppercase">Local data workspace</p>
+        <p className="text-xs tracking-[0.18em] text-mist uppercase">Espace de travail local</p>
         <h1 className="mt-2 font-display text-3xl leading-tight font-medium tracking-tight text-white sm:text-5xl">
-          Explore your files
+          Explorez vos fichiers
         </h1>
         <p className="mt-2 max-w-xl text-sm text-mist sm:text-base">
           Déposez vos fichiers, choisissez une période et exportez les résultats. Tout reste sur votre ordinateur.
@@ -26,7 +26,7 @@ export function Header({ onHome }: { onHome: () => void }) {
           onClick={onHome}
           className="rounded-full border border-white/20 px-4 py-2 text-sm text-mist transition hover:border-white/50 hover:text-white"
         >
-          ← Home
+          ← Accueil
         </button>
       </motion.div>
     </header>

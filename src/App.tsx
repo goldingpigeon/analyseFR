@@ -192,7 +192,7 @@ export default function App() {
             >
               <a className="flex items-center gap-3" href="#home" aria-label="Retour en haut">
                 <span className="grid size-9 place-items-center rounded-full border border-white/25 text-xs font-semibold tracking-widest">01</span>
-                <span className="font-display text-sm font-medium tracking-[0.16em] text-white">LOCAL / DATA</span>
+                <span className="font-display text-sm font-medium tracking-[0.16em] text-white">DONNÉES / LOCALES</span>
               </a>
               <div className="flex items-center gap-3">
                 <button
@@ -203,14 +203,14 @@ export default function App() {
                     setShowSignIn(true);
                   }}
                 >
-                  Sign in
+                  Se connecter
                 </button>
                 <button
                   type="button"
                   className="rounded-full border border-white/25 px-4 py-2 text-sm text-white transition hover:bg-white hover:text-black"
                   onClick={() => setShowWorkspace(true)}
                 >
-                  Open workspace <span aria-hidden="true">↗</span>
+                  Ouvrir l'espace <span aria-hidden="true">↗</span>
                 </button>
               </div>
             </motion.header>
@@ -224,7 +224,7 @@ export default function App() {
                   transition={{ delay: 0.1 }}
                 >
                   <span className="size-1.5 rounded-full bg-white" />
-                  A quieter way to work with data
+                  Une façon plus sereine de travailler vos données
                 </motion.p>
                 <motion.h1
                   className="max-w-3xl font-display text-5xl leading-[0.98] font-medium tracking-[-0.06em] text-white sm:text-7xl lg:text-8xl"
@@ -232,9 +232,9 @@ export default function App() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.65, delay: 0.15 }}
                 >
-                  Your data.
+                  Vos données.
                   <br />
-                  <span className="text-white/45">In focus.</span>
+                  <span className="text-white/45">En clair.</span>
                 </motion.h1>
                 <motion.p
                   className="mt-7 max-w-lg text-base leading-7 text-mist sm:text-lg"
@@ -242,7 +242,7 @@ export default function App() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.35, duration: 0.6 }}
                 >
-                  Filter local planning files, find the details that matter, and export a clear result. Your files stay on your device.
+                  Filtrez les fichiers d'urbanisme, trouvez les informations utiles et exportez un résultat clair. Vos fichiers restent sur votre appareil.
                 </motion.p>
                 <motion.div
                   className="mt-9 flex flex-wrap items-center gap-4"
@@ -255,9 +255,9 @@ export default function App() {
                     className="group rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-white/85"
                     onClick={() => setShowWorkspace(true)}
                   >
-                    Explore the workspace <span className="ml-3 transition-transform group-hover:translate-x-1">→</span>
+                    Explorer l'espace de travail <span className="ml-3 transition-transform group-hover:translate-x-1">→</span>
                   </button>
-                  <span className="text-xs tracking-wide text-mist">No account needed · 100% local</span>
+                  <span className="text-xs tracking-wide text-mist">Sans compte · 100 % local</span>
                 </motion.div>
                 <motion.div
                   className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-5 text-xs tracking-wide text-mist"
@@ -265,9 +265,9 @@ export default function App() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.65 }}
                 >
-                  <span><span className="mr-2 text-white">01</span> Drop a file</span>
-                  <span><span className="mr-2 text-white">02</span> Set your filters</span>
-                  <span><span className="mr-2 text-white">03</span> Export your results</span>
+                  <span><span className="mr-2 text-white">01</span> Déposez un fichier</span>
+                  <span><span className="mr-2 text-white">02</span> Réglez vos filtres</span>
+                  <span><span className="mr-2 text-white">03</span> Exportez les résultats</span>
                 </motion.div>
               </div>
 
@@ -288,19 +288,19 @@ export default function App() {
                         </svg>
                       </span>
                       <div>
-                        <p className="text-sm font-medium text-white">Overview</p>
-                        <p className="mt-0.5 text-xs text-mist">Local workspace</p>
+                        <p className="text-sm font-medium text-white">Aperçu</p>
+                        <p className="mt-0.5 text-xs text-mist">Espace local</p>
                       </div>
                     </div>
-                    <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] tracking-[0.14em] text-mist uppercase">Private</span>
+                    <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] tracking-[0.14em] text-mist uppercase">Privé</span>
                   </div>
                   <div className="py-7">
                     <div className="mb-5 flex items-end justify-between">
                       <div>
-                        <p className="text-xs text-mist">Matched records</p>
-                        <p className="mt-2 font-display text-5xl tracking-tight text-white">1,284</p>
+                        <p className="text-xs text-mist">Permis trouvés</p>
+                        <p className="mt-2 font-display text-5xl tracking-tight text-white">1 284</p>
                       </div>
-                      <p className="pb-1 text-xs text-mist">Filtered · ready to export</p>
+                      <p className="pb-1 text-xs text-mist">Filtré · prêt à exporter</p>
                     </div>
                     <div className="flex h-24 items-end gap-2" aria-hidden="true">
                       {[32, 54, 40, 75, 58, 88, 63, 100, 72, 83, 55, 92, 68, 78, 48, 65, 36, 76].map((height, index) => (
@@ -316,12 +316,12 @@ export default function App() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-5">
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Date range</p>
-                      <p className="mt-2 text-sm text-white">01 Jan — 31 Dec</p>
+                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Période</p>
+                      <p className="mt-2 text-sm text-white">01 janv. — 31 déc.</p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Processing</p>
-                      <p className="mt-2 flex items-center gap-2 text-sm text-white"><span className="size-1.5 rounded-full bg-white" /> On this device</p>
+                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Traitement</p>
+                      <p className="mt-2 flex items-center gap-2 text-sm text-white"><span className="size-1.5 rounded-full bg-white" /> Sur cet appareil</p>
                     </div>
                   </div>
                 </div>
@@ -330,14 +330,14 @@ export default function App() {
                   animate={{ y: [0, -7, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                  Thoughtful by design
+                  Pensé avec soin
                 </motion.span>
               </motion.div>
             </main>
 
             <footer className="flex flex-col-reverse gap-3 border-t border-white/10 py-5 text-xs text-mist sm:flex-row sm:items-center sm:justify-between">
               <span><span className="text-white">tamim k.</span> · 2026</span>
-              <span>Built for clarity. Designed to stay local.</span>
+              <span>Conçu pour la clarté. Pensé pour rester local.</span>
             </footer>
           </div>
 
@@ -363,12 +363,12 @@ export default function App() {
                 >
                   <div className="mb-8 flex items-start justify-between">
                     <div>
-                      <p className="text-xs tracking-[0.18em] text-mist uppercase">Account access</p>
-                      <h2 id="sign-in-title" className="mt-3 font-display text-3xl text-white">Sign in</h2>
+                      <p className="text-xs tracking-[0.18em] text-mist uppercase">Accès au compte</p>
+                      <h2 id="sign-in-title" className="mt-3 font-display text-3xl text-white">Connexion</h2>
                     </div>
                     <button
                       type="button"
-                      aria-label="Close sign-in dialog"
+                      aria-label="Fermer la fenêtre de connexion"
                       className="rounded-full border border-white/15 px-3 py-1.5 text-mist hover:text-white"
                       onClick={() => setShowSignIn(false)}
                     >
@@ -379,23 +379,23 @@ export default function App() {
                     className="space-y-4"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      setSignInNotice('Account sign-in is not connected yet. You can use the workspace without an account.');
+                      setSignInNotice("La connexion n'est pas encore disponible. Vous pouvez utiliser l'espace de travail sans compte.");
                     }}
                   >
                     <label className="block text-sm text-mist">
-                      Email
-                      <input className="field mt-2" type="email" autoComplete="email" placeholder="you@example.com" required />
+                      Adresse e-mail
+                      <input className="field mt-2" type="email" autoComplete="email" placeholder="vous@exemple.fr" required />
                     </label>
                     <label className="block text-sm text-mist">
-                      Password
-                      <input className="field mt-2" type="password" autoComplete="current-password" placeholder="Your password" required />
+                      Mot de passe
+                      <input className="field mt-2" type="password" autoComplete="current-password" placeholder="Votre mot de passe" required />
                     </label>
                     {signInNotice && <p role="status" className="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-white">{signInNotice}</p>}
                     <button type="submit" className="w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85">
-                      Continue
+                      Continuer
                     </button>
                   </form>
-                  <p className="mt-5 text-center text-xs leading-5 text-mist">No account is required to use the local workspace. Files never leave your device.</p>
+                  <p className="mt-5 text-center text-xs leading-5 text-mist">Aucun compte n'est nécessaire pour utiliser l'espace de travail. Vos fichiers ne quittent jamais votre appareil.</p>
                 </motion.section>
               </motion.div>
             )}
