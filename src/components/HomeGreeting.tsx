@@ -109,7 +109,7 @@ export function HomeGreeting({
               >
                 {menuIcon}
               </button>
-              <span className="font-display text-sm font-medium tracking-[0.16em] text-white">DONNÉES / LOCALES</span>
+              <span className="font-display text-sm font-medium tracking-[0.16em] text-white">KHEIDRI ASSISTANT</span>
             </div>
             <div className="relative">
               <button

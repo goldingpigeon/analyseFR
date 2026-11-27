@@ -16,7 +16,10 @@ export function AuthDialog({
   mode: initialMode,
   onClose,
   onDone,
+  inline = false,
 }: {
+  /** Affichée comme une page (écran de connexion) plutôt qu'en fenêtre. */
+  inline?: boolean;
   open: boolean;
   mode: AuthMode;
   onClose: () => void;
@@ -62,7 +65,7 @@ export function AuthDialog({
   }, [open, initialMode]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || inline) return;
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
@@ -111,21 +114,10 @@ export function AuthDialog({
   const submitLabel =
     mode === 'connexion' ? 'Se connecter' : mode === 'inscription' ? 'Créer mon compte' : mode === 'oubli' ? 'Envoyer le lien' : 'Enregistrer';
 
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-30 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && mode !== 'nouveau') onClose();
-          }}
-        >
+  const card = (
           <motion.section
-            role="dialog"
-            aria-modal="true"
+            role={inline ? undefined : "dialog"}
+            aria-modal={inline ? undefined : true}
             aria-labelledby="auth-title"
             className="w-full max-w-md rounded-3xl border border-white/15 bg-[#101010] p-7 shadow-2xl sm:p-9"
             initial={{ opacity: 0, y: 18, scale: 0.97 }}
@@ -139,7 +131,7 @@ export function AuthDialog({
                   {title}
                 </h2>
               </div>
-              {mode !== 'nouveau' && (
+              {mode !== 'nouveau' && !inline && (
                 <button
                   type="button"
                   aria-label="Fermer la fenêtre de connexion"
@@ -250,6 +242,23 @@ export function AuthDialog({
               </p>
             )}
           </motion.section>
+  );
+
+  if (inline) return open ? card : null;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-30 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && mode !== 'nouveau') onClose();
+          }}
+        >
+          {card}
         </motion.div>
       )}
     </AnimatePresence>

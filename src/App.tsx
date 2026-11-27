@@ -11,7 +11,8 @@ import { useChatState, type AnalyzeTabular } from './components/Chat';
 import { statsForAI } from './lib/aiContext';
 import { fileAsText } from './lib/ai';
 import { fmtBytes } from './lib/fr';
-import { firstName, signOut, useSession } from './lib/auth';
+import { authEnabled, firstName, signOut, useSession } from './lib/auth';
+import { Quark } from './components/Quark';
 import { WaterProgress } from './components/WaterProgress';
 import { Summary } from './components/Summary';
 import { SpringButton } from './components/SpringButton';
@@ -43,7 +44,7 @@ export default function App() {
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('connexion');
-  const { session, recovery, endRecovery } = useSession();
+  const { session, loading: sessionLoading, recovery, endRecovery } = useSession();
   const chat = useChatState(session?.user.id ?? null);
   // Demandes du chat envoyées au même module de lecture que l'espace de travail
   const pendingInspect = useRef(new Map<string, (r: InspectResult) => void>());
@@ -292,169 +293,53 @@ export default function App() {
     );
   }
 
-  if (!showWorkspace) {
+  // Vérification de la session en cours : petit écran d'attente (évite d'afficher la connexion par erreur)
+  if (authEnabled && sessionLoading) {
+    return (
+      <div className="landing-page grid min-h-dvh place-items-center">
+        <Quark active size={40} />
+      </div>
+    );
+  }
+
+  // Visiteur non connecté : directement l'écran de connexion
+  if (!showWorkspace && !session && authEnabled) {
     return (
       <MotionConfig reducedMotion="user">
-        <div className="landing-page min-h-dvh overflow-hidden px-5 text-foam sm:px-8">
-          <div className="mx-auto flex min-h-dvh max-w-7xl flex-col">
-            <motion.header
-              className="flex items-center justify-between border-b border-white/10 py-5"
-              initial={{ opacity: 0, y: -12 }}
+        <div className="landing-page flex min-h-dvh flex-col px-5 text-foam sm:px-8">
+          <header className="mx-auto flex w-full max-w-5xl items-center gap-3 border-b border-white/10 py-5">
+            <Quark active={false} size={30} />
+            <span className="font-display text-sm font-medium tracking-[0.16em] text-white">KHEIDRI ASSISTANT</span>
+          </header>
+          <main className="flex flex-1 flex-col items-center justify-center py-10">
+            <motion.p
+              className="mb-6 max-w-md text-center text-sm leading-6 text-mist"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <a className="flex items-center gap-3" href="#home" aria-label="Retour en haut">
-                <span className="grid size-9 place-items-center rounded-full border border-white/25 text-xs font-semibold tracking-widest">01</span>
-                <span className="font-display text-sm font-medium tracking-[0.16em] text-white">DONNÉES / LOCALES</span>
-              </a>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="rounded-full px-4 py-2 text-sm text-mist transition hover:text-white"
-                  onClick={() => {
-                    setAuthMode('connexion');
-                    setAuthOpen(true);
-                  }}
-                >
-                  Se connecter
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/25 px-4 py-2 text-sm text-white transition hover:bg-white hover:text-black"
-                  onClick={() => setShowWorkspace(true)}
-                >
-                  Ouvrir l'espace <span aria-hidden="true">↗</span>
-                </button>
-              </div>
-            </motion.header>
-
-            <main id="home" className="grid flex-1 items-center gap-14 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
-              <div className="relative z-10">
-                <motion.p
-                  className="mb-6 flex items-center gap-3 text-xs font-medium tracking-[0.24em] text-mist uppercase"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <span className="size-1.5 rounded-full bg-white" />
-                  Une façon plus sereine de travailler vos données
-                </motion.p>
-                <motion.h1
-                  className="max-w-3xl font-display text-5xl leading-[0.98] font-medium tracking-[-0.06em] text-white sm:text-7xl lg:text-8xl"
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.65, delay: 0.15 }}
-                >
-                  Vos données.
-                  <br />
-                  <span className="text-white/45">En clair.</span>
-                </motion.h1>
-                <motion.p
-                  className="mt-7 max-w-lg text-base leading-7 text-mist sm:text-lg"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.35, duration: 0.6 }}
-                >
-                  Filtrez les fichiers d'urbanisme, trouvez les informations utiles et exportez un résultat clair. Vos fichiers restent sur votre appareil.
-                </motion.p>
-                <motion.div
-                  className="mt-9 flex flex-wrap items-center gap-4"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.45 }}
-                >
-                  <button
-                    type="button"
-                    className="group rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-white/85"
-                    onClick={() => setShowWorkspace(true)}
-                  >
-                    Explorer l'espace de travail <span className="ml-3 transition-transform group-hover:translate-x-1">→</span>
-                  </button>
-                  <span className="text-xs tracking-wide text-mist">Sans compte · 100 % local</span>
-                </motion.div>
-                <motion.div
-                  className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-5 text-xs tracking-wide text-mist"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.65 }}
-                >
-                  <span><span className="mr-2 text-white">01</span> Déposez un fichier</span>
-                  <span><span className="mr-2 text-white">02</span> Réglez vos filtres</span>
-                  <span><span className="mr-2 text-white">03</span> Exportez les résultats</span>
-                </motion.div>
-              </div>
-
-              <motion.div
-                className="relative mx-auto w-full max-w-xl"
-                initial={{ opacity: 0, scale: 0.94, rotate: 1.5 }}
-                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                transition={{ duration: 0.8, delay: 0.2, type: 'spring', stiffness: 90, damping: 20 }}
-              >
-                <div className="orbit orbit-one" aria-hidden="true" />
-                <div className="orbit orbit-two" aria-hidden="true" />
-                <div className="relative overflow-hidden rounded-[1.75rem] border border-white/15 bg-[#111]/90 p-5 shadow-[0_28px_100px_-40px_rgba(255,255,255,0.2)] backdrop-blur sm:p-7">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-5">
-                    <div className="flex items-center gap-3">
-                      <span className="grid size-9 place-items-center rounded-full bg-white text-black">
-                        <svg viewBox="0 0 20 20" fill="none" className="size-4" aria-hidden="true">
-                          <path d="M3 5.5h14M3 10h14M3 14.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-white">Aperçu</p>
-                        <p className="mt-0.5 text-xs text-mist">Espace local</p>
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] tracking-[0.14em] text-mist uppercase">Privé</span>
-                  </div>
-                  <div className="py-7">
-                    <div className="mb-5 flex items-end justify-between">
-                      <div>
-                        <p className="text-xs text-mist">Permis trouvés</p>
-                        <p className="mt-2 font-display text-5xl tracking-tight text-white">1 284</p>
-                      </div>
-                      <p className="pb-1 text-xs text-mist">Filtré · prêt à exporter</p>
-                    </div>
-                    <div className="flex h-24 items-end gap-2" aria-hidden="true">
-                      {[32, 54, 40, 75, 58, 88, 63, 100, 72, 83, 55, 92, 68, 78, 48, 65, 36, 76].map((height, index) => (
-                        <motion.span
-                          key={index}
-                          className="flex-1 rounded-t-sm bg-white"
-                          initial={{ height: 0, opacity: 0.2 }}
-                          animate={{ height: `${height}%`, opacity: index > 13 ? 0.24 : 0.82 }}
-                          transition={{ delay: 0.55 + index * 0.035, duration: 0.45, ease: 'easeOut' }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-5">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Période</p>
-                      <p className="mt-2 text-sm text-white">01 janv. — 31 déc.</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-[10px] tracking-[0.16em] text-mist uppercase">Traitement</p>
-                      <p className="mt-2 flex items-center gap-2 text-sm text-white"><span className="size-1.5 rounded-full bg-white" /> Sur cet appareil</p>
-                    </div>
-                  </div>
-                </div>
-                <motion.span
-                  className="absolute -right-3 top-12 hidden rounded-full border border-white/20 bg-black px-4 py-2 text-xs text-white shadow-xl sm:block"
-                  animate={{ y: [0, -7, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  Pensé avec soin
-                </motion.span>
-              </motion.div>
-            </main>
-
-            <footer className="flex flex-col-reverse gap-3 border-t border-white/10 py-5 text-xs text-mist sm:flex-row sm:items-center sm:justify-between">
-              <span><span className="text-white">tamim k.</span> · 2026</span>
-              <span>Conçu pour la clarté. Pensé pour rester local.</span>
-            </footer>
-          </div>
-
-          {authDialog}
+              Connectez-vous pour discuter avec Kheidri Assistant et retrouver vos conversations.
+            </motion.p>
+            <motion.div className="w-full max-w-md" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+              <AuthDialog
+                inline
+                open
+                mode={recovery ? 'nouveau' : 'connexion'}
+                onClose={() => {}}
+                onDone={() => endRecovery()}
+              />
+            </motion.div>
+            <button
+              type="button"
+              onClick={() => setShowWorkspace(true)}
+              className="mt-6 text-sm text-mist underline decoration-white/25 underline-offset-4 transition hover:text-white"
+            >
+              Continuer sans compte (espace de travail local) →
+            </button>
+          </main>
+          <footer className="mx-auto w-full max-w-5xl border-t border-white/10 py-5 text-xs text-mist">
+            <span className="text-white">tamim k.</span> · 2026
+          </footer>
         </div>
       </MotionConfig>
     );
