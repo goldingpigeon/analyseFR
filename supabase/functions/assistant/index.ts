@@ -78,23 +78,37 @@ async function handle(req: Request): Promise<Response> {
     });
   const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
   const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
+  // Une clé « AQ. » ne fonctionne qu'avec Vertex AI ; une clé « AIza » qu'avec AI Studio : pas de bascule inutile.
   const targets: [string, string][] = key.startsWith('AQ.')
-    ? [[vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash'], [studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest']]
-    : [[studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest'], [vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash']];
+    ? [[vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash']]
+    : [[studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest']];
 
   let upstream: Response | null = null;
   let detail = '';
   for (const [url, m] of targets) {
+    // Délai max de 30 s avant le début de la réponse (minuteur explicite, fiable sur Supabase).
+    const ctl = new AbortController();
+    let timer: number | undefined;
     try {
-      upstream = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: body(m),
-        signal: AbortSignal.timeout(45_000), // délai max avant le début de la réponse
-      });
+      upstream = await Promise.race([
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: body(m),
+          signal: ctl.signal,
+        }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            ctl.abort();
+            reject(new Error('délai dépassé'));
+          }, 30_000);
+        }),
+      ]);
     } catch (e) {
       console.error(url.split('?')[0], e);
-      return json(504, { error: 'Google met trop de temps à répondre (plus de 45 s). Réessayez dans un instant.' });
+      return json(504, { error: 'Google met trop de temps à répondre (plus de 30 s). Réessayez dans un instant.' });
+    } finally {
+      clearTimeout(timer);
     }
     if (upstream.ok && upstream.body) break;
     detail = await upstream.text().catch(() => '');
@@ -106,6 +120,7 @@ async function handle(req: Request): Promise<Response> {
     const st = upstream?.status ?? 0;
     let msg = `Google a répondu avec une erreur (${st}).`;
     if (st === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
+    else if (key.startsWith('AQ.') && [400, 401, 403].includes(st)) msg = "Google refuse cette clé Vertex AI (« AQ. »). Le plus simple : créez une clé sur aistudio.google.com/apikey (elle commence par « AIza ») et remplacez le secret GEMINI_API_KEY.";
     else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'La clé GEMINI_API_KEY est refusée par Google. Créez une clé sur aistudio.google.com/apikey (elle commence par « AIza »).';
     else if (st === 403 && /permission|disabled|not been used/i.test(detail)) msg = "La clé n'a pas accès à l'API Gemini (API désactivée sur le projet Google ?).";
     else if (st === 404) msg = 'Modèle introuvable. Ajoutez le secret GEMINI_MODEL (par ex. gemini-2.5-flash).';
