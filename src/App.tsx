@@ -4,7 +4,10 @@ import { Bubbles } from './components/Bubbles';
 import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { FileCard, type FileEntry } from './components/FileCard';
-import { defaultFilters, FiltersPanel, type FilterState } from './components/FiltersPanel';
+import { defaultFilters, FiltersPanel, PRESETS, type FilterState } from './components/FiltersPanel';
+import { AuthDialog, type AuthMode } from './components/AuthDialog';
+import { HomeGreeting } from './components/HomeGreeting';
+import { firstName, signOut, useSession } from './lib/auth';
 import { WaterProgress } from './components/WaterProgress';
 import { Summary } from './components/Summary';
 import { SpringButton } from './components/SpringButton';
@@ -34,8 +37,9 @@ export default function App() {
   const [view, setView] = useState<View>('list');
   const [details, setDetails] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
-  const [showSignIn, setShowSignIn] = useState(false);
-  const [signInNotice, setSignInNotice] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('connexion');
+  const { session, recovery, endRecovery } = useSession();
   const [listSort, setListSort] = useState<{ key: ListKey; dir: Dir }>({ key: 'date', dir: 'desc' });
   const [groupSort, setGroupSort] = useState<{ key: GroupKey; dir: Dir }>({ key: 'latest', dir: 'desc' });
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -86,15 +90,6 @@ export default function App() {
     };
     return () => w.terminate();
   }, []);
-
-  useEffect(() => {
-    if (!showSignIn) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowSignIn(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [showSignIn]);
 
   /* ---------------- Fichiers */
   const addFiles = useCallback((list: File[], rejected: string[] = []) => {
@@ -179,6 +174,51 @@ export default function App() {
 
   const runningName = progress && ready[progress.fileIndex] ? ready[progress.fileIndex].file.name : '';
 
+  const authDialog = (
+    <AuthDialog
+      open={authOpen || recovery}
+      mode={recovery ? 'nouveau' : authMode}
+      onClose={() => setAuthOpen(false)}
+      onDone={() => {
+        setAuthOpen(false);
+        endRecovery();
+      }}
+    />
+  );
+
+  if (!showWorkspace && session) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <HomeGreeting
+          prenom={firstName(session)}
+          email={session.user.email ?? ''}
+          onOpenWorkspace={() => setShowWorkspace(true)}
+          onFiles={(list, rejected) => {
+            addFiles(list, rejected);
+            if (list.length) setShowWorkspace(true);
+          }}
+          onSample={() => {
+            loadSample();
+            setShowWorkspace(true);
+          }}
+          onPreset={(id) => {
+            const p = PRESETS.find((x) => x.id === id);
+            if (p) {
+              const [from, to] = p.range();
+              setFilters((f) => ({ ...f, from, to, preset: id }));
+            }
+            setShowWorkspace(true);
+          }}
+          onSignOut={async () => {
+            await signOut();
+            setShowWorkspace(false);
+          }}
+        />
+        {authDialog}
+      </MotionConfig>
+    );
+  }
+
   if (!showWorkspace) {
     return (
       <MotionConfig reducedMotion="user">
@@ -199,8 +239,8 @@ export default function App() {
                   type="button"
                   className="rounded-full px-4 py-2 text-sm text-mist transition hover:text-white"
                   onClick={() => {
-                    setSignInNotice(null);
-                    setShowSignIn(true);
+                    setAuthMode('connexion');
+                    setAuthOpen(true);
                   }}
                 >
                   Se connecter
@@ -341,65 +381,7 @@ export default function App() {
             </footer>
           </div>
 
-          <AnimatePresence>
-            {showSignIn && (
-              <motion.div
-                className="fixed inset-0 z-30 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onMouseDown={(event) => {
-                  if (event.target === event.currentTarget) setShowSignIn(false);
-                }}
-              >
-                <motion.section
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="sign-in-title"
-                  className="w-full max-w-md rounded-3xl border border-white/15 bg-[#101010] p-7 shadow-2xl sm:p-9"
-                  initial={{ opacity: 0, y: 18, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                >
-                  <div className="mb-8 flex items-start justify-between">
-                    <div>
-                      <p className="text-xs tracking-[0.18em] text-mist uppercase">Accès au compte</p>
-                      <h2 id="sign-in-title" className="mt-3 font-display text-3xl text-white">Connexion</h2>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Fermer la fenêtre de connexion"
-                      className="rounded-full border border-white/15 px-3 py-1.5 text-mist hover:text-white"
-                      onClick={() => setShowSignIn(false)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <form
-                    className="space-y-4"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      setSignInNotice("La connexion n'est pas encore disponible. Vous pouvez utiliser l'espace de travail sans compte.");
-                    }}
-                  >
-                    <label className="block text-sm text-mist">
-                      Adresse e-mail
-                      <input className="field mt-2" type="email" autoComplete="email" placeholder="vous@exemple.fr" required />
-                    </label>
-                    <label className="block text-sm text-mist">
-                      Mot de passe
-                      <input className="field mt-2" type="password" autoComplete="current-password" placeholder="Votre mot de passe" required />
-                    </label>
-                    {signInNotice && <p role="status" className="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-white">{signInNotice}</p>}
-                    <button type="submit" className="w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85">
-                      Continuer
-                    </button>
-                  </form>
-                  <p className="mt-5 text-center text-xs leading-5 text-mist">Aucun compte n'est nécessaire pour utiliser l'espace de travail. Vos fichiers ne quittent jamais votre appareil.</p>
-                </motion.section>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {authDialog}
         </div>
       </MotionConfig>
     );
@@ -564,6 +546,7 @@ export default function App() {
           )}
         </main>
 
+        {authDialog}
         <footer className="mt-auto pt-6 text-center font-display text-sm text-mist/80">
           <span className="text-white">tamim k.</span>
         </footer>

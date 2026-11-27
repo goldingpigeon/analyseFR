@@ -63,6 +63,28 @@ npm run preview
 Le contenu de `dist/` peut être hébergé sur n'importe quel hébergeur de fichiers statiques
 (Netlify, GitHub Pages, un simple serveur web…).
 
+## Comptes utilisateurs (facultatif)
+
+La connexion utilise [Supabase](https://supabase.com) (gratuit). Sans configuration, le site
+fonctionne normalement et le bouton « Se connecter » indique que la connexion n'est pas activée.
+
+1. Créez un projet sur supabase.com.
+2. **Authentication → URL Configuration** : *Site URL* =
+   `https://goldingpigeon.github.io/permis-construire/` (ajoutez-la aussi dans *Redirect URLs*).
+3. **Project Settings → API** : copiez la *Project URL* et la clé *anon public*.
+4. Dans GitHub : **Settings → Secrets and variables → Actions → onglet Variables**, créez
+   `SUPABASE_URL` et `SUPABASE_ANON_KEY`, puis relancez le workflow « Publier sur GitHub Pages ».
+
+En local, mettez-les dans un fichier `.env.local` :
+
+```
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=votre-cle-anon
+```
+
+Seuls le prénom et l'adresse e-mail sont enregistrés chez Supabase. Les fichiers analysés
+ne quittent jamais l'appareil.
+
 ## Où trouver les fichiers
 
 Sur data.gouv.fr, cherchez « Liste des permis de construire et autres autorisations
