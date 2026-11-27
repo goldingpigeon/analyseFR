@@ -4,9 +4,9 @@ type Variant = 'primary' | 'ghost' | 'coral' | 'chip';
 
 const STYLES: Record<Variant, string> = {
   primary:
-    'bg-gradient-to-b from-aqua-soft to-aqua text-abyss font-display font-semibold shadow-[0_0_28px_-6px_rgba(62,232,216,0.7)]',
+    'bg-gradient-to-b from-aqua-soft to-aqua text-abyss font-display font-semibold shadow-[0_0_28px_-10px_rgba(255,255,255,0.3)]',
   coral:
-    'bg-gradient-to-b from-coral-soft to-coral text-abyss font-display font-semibold shadow-[0_0_28px_-6px_rgba(255,122,107,0.7)]',
+    'bg-gradient-to-b from-coral-soft to-coral text-abyss font-display font-semibold shadow-[0_0_28px_-10px_rgba(255,255,255,0.22)]',
   ghost: 'bg-reef/70 text-foam border border-aqua/20 hover:border-aqua/50',
   chip: 'bg-deep/80 text-mist border border-aqua/15 hover:text-foam hover:border-aqua/40 text-sm',
 };

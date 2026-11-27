@@ -1,20 +1,20 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-abyss: #050a14;
-  --color-deep: #0a1628;
-  --color-reef: #10213a;
-  --color-kelp: #1a3354;
-  --color-aqua: #3ee8d8;
-  --color-aqua-soft: #8ff5ea;
-  --color-coral: #ff7a6b;
-  --color-coral-soft: #ffb3a8;
-  --color-sun: #ffd36b;
-  --color-foam: #e8f6ff;
-  --color-mist: #8aa4c4;
+  --color-abyss: #050505;
+  --color-deep: #0a0a0a;
+  --color-reef: #141414;
+  --color-kelp: #242424;
+  --color-aqua: #f0f0f0;
+  --color-aqua-soft: #ffffff;
+  --color-coral: #d3d3d3;
+  --color-coral-soft: #e5e5e5;
+  --color-sun: #e5e5e5;
+  --color-foam: #f4f4f4;
+  --color-mist: #9a9a9a;
 
-  --font-display: 'Fredoka', ui-rounded, system-ui, sans-serif;
-  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --font-display: 'TS Quamus', 'Inter Variable', 'Inter', Arial, sans-serif;
+  --font-sans: 'TS Quamus', 'Inter Variable', 'Inter', Arial, sans-serif;
 }
 
 :root {
@@ -33,36 +33,66 @@ body {
 body {
   min-height: 100dvh;
   background:
-    radial-gradient(1200px 600px at 15% -10%, rgba(62, 232, 216, 0.10), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(255, 122, 107, 0.08), transparent 60%),
-    linear-gradient(180deg, #071022 0%, var(--color-abyss) 45%, #03060d 100%);
+    radial-gradient(900px 520px at 50% -18%, rgba(255, 255, 255, 0.09), transparent 65%),
+    linear-gradient(180deg, #0b0b0b 0%, var(--color-abyss) 55%, #030303 100%);
   background-attachment: fixed;
 }
 
-/* Cartes « verre de hublot » */
+.landing-page {
+  position: relative;
+  isolation: isolate;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.orbit {
+  position: absolute;
+  z-index: -1;
+  inset: -12%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.orbit-one {
+  animation: orbit 32s linear infinite;
+}
+.orbit-two {
+  inset: -4%;
+  border-color: rgba(255, 255, 255, 0.05);
+  animation: orbit 44s linear infinite reverse;
+}
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Translucent workspace panels */
 .card {
-  background: linear-gradient(180deg, rgba(20, 40, 70, 0.55), rgba(10, 22, 40, 0.6));
-  border: 1px solid rgba(143, 245, 234, 0.10);
+  background: linear-gradient(180deg, rgba(35, 35, 35, 0.55), rgba(10, 10, 10, 0.75));
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 1.5rem;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.2),
     0 10px 40px -12px rgba(0, 0, 0, 0.7),
-    0 0 40px -18px rgba(62, 232, 216, 0.35);
+    0 0 40px -18px rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(6px);
 }
 
 .glow-text-aqua {
-  text-shadow: 0 0 18px rgba(62, 232, 216, 0.55);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.28);
 }
 .glow-text-coral {
-  text-shadow: 0 0 18px rgba(255, 122, 107, 0.5);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.22);
 }
 
 /* Champs */
 .field {
   width: 100%;
-  background: rgba(5, 10, 20, 0.6);
-  border: 1px solid rgba(143, 245, 234, 0.16);
+  background: rgba(5, 5, 5, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 0.9rem;
   padding: 0.65rem 0.9rem;
   color: var(--color-foam);
@@ -70,8 +100,8 @@ body {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .field:focus {
-  border-color: var(--color-aqua);
-  box-shadow: 0 0 0 3px rgba(62, 232, 216, 0.18);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
 .field::placeholder {
   color: rgba(138, 164, 196, 0.6);
@@ -81,7 +111,7 @@ input[type='date'].field::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 select.field option {
-  background: #0a1628;
+  background: #0a0a0a;
 }
 
 /* Bulles d'arrière-plan : transform + opacity uniquement */
@@ -108,8 +138,8 @@ select.field option {
   position: absolute;
   bottom: -40px;
   border-radius: 9999px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55), rgba(143, 245, 234, 0.12) 45%, rgba(143, 245, 234, 0.04) 70%);
-  border: 1px solid rgba(143, 245, 234, 0.18);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12) 45%, rgba(255, 255, 255, 0.04) 70%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   animation: rise linear infinite;
   will-change: transform, opacity;
 }
@@ -187,20 +217,24 @@ select.field option {
 /* Barre de défilement discrète */
 .scroll-ocean {
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 232, 216, 0.35) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
 }
 .scroll-ocean::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .scroll-ocean::-webkit-scrollbar-thumb {
-  background: rgba(62, 232, 216, 0.28);
+  background: rgba(255, 255, 255, 0.28);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .orbit-one,
+  .orbit-two {
+    animation: none !important;
+  }
   .bubble,
   .drop-glow,
   .drop-idle,
