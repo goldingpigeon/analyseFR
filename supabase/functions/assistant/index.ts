@@ -3,9 +3,8 @@
 // Seuls les utilisateurs connectés peuvent l'appeler.
 //
 // Secrets à définir dans Supabase (Edge Functions → Secrets) :
-//   GEMINI_API_KEY   (obligatoire) clé Google AI Studio (« AIza… », https://aistudio.google.com/apikey)
-//                    ou clé Vertex AI en mode express (« AQ.… »)
-//   GEMINI_MODEL     (facultatif)  par défaut « gemini-flash-latest » (AI Studio) / « gemini-2.5-flash » (Vertex)
+//   GEMINI_API_KEY   (obligatoire) clé créée sur https://aistudio.google.com/apikey (« AIza… » ou « AQ.… »)
+//   GEMINI_MODEL     (facultatif)  par défaut « gemini-2.5-flash »
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -67,7 +66,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   // 3. Appeler Gemini en flux (SSE) et ne renvoyer que le texte au navigateur.
-  //    Clé « AIza… » → API Gemini (AI Studio). Clé « AQ.… » → Vertex AI (mode express).
+  //    Toutes les clés AI Studio passent par l'API Gemini ; Vertex AI sert de secours.
   const custom = clean(Deno.env.get('GEMINI_MODEL'));
   // Réponse rapide : pas de « réflexion » silencieuse pour les modèles 2.5 Flash.
   const body = (m: string) =>
@@ -78,10 +77,10 @@ async function handle(req: Request): Promise<Response> {
     });
   const studio = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
   const vertex = (m: string) => `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:streamGenerateContent?alt=sse`;
-  // Une clé « AQ. » ne fonctionne qu'avec Vertex AI ; une clé « AIza » qu'avec AI Studio : pas de bascule inutile.
-  const targets: [string, string][] = key.startsWith('AQ.')
-    ? [[vertex(custom || 'gemini-2.5-flash'), custom || 'gemini-2.5-flash']]
-    : [[studio(custom || 'gemini-flash-latest'), custom || 'gemini-flash-latest']];
+  // Toutes les clés AI Studio (« AIza… » comme « AQ.… ») passent par l'API Gemini.
+  // Vertex AI n'est essayé que si Google y refuse la clé (clé créée dans Google Cloud).
+  const model = custom || 'gemini-2.5-flash';
+  const targets: [string, string][] = [[studio(model), model], [vertex(model), model]];
 
   let upstream: Response | null = null;
   let detail = '';
@@ -120,8 +119,7 @@ async function handle(req: Request): Promise<Response> {
     const st = upstream?.status ?? 0;
     let msg = `Google a répondu avec une erreur (${st}).`;
     if (st === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
-    else if (key.startsWith('AQ.') && [400, 401, 403].includes(st)) msg = "Google refuse cette clé Vertex AI (« AQ. »). Le plus simple : créez une clé sur aistudio.google.com/apikey (elle commence par « AIza ») et remplacez le secret GEMINI_API_KEY.";
-    else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'La clé GEMINI_API_KEY est refusée par Google. Créez une clé sur aistudio.google.com/apikey (elle commence par « AIza »).';
+    else if ([400, 401, 403].includes(st) && /key|credential|auth/i.test(detail)) msg = 'Google refuse la clé GEMINI_API_KEY. Recopiez-la depuis aistudio.google.com/apikey (bouton « Copier la clé »).';
     else if (st === 403 && /permission|disabled|not been used/i.test(detail)) msg = "La clé n'a pas accès à l'API Gemini (API désactivée sur le projet Google ?).";
     else if (st === 404) msg = 'Modèle introuvable. Ajoutez le secret GEMINI_MODEL (par ex. gemini-2.5-flash).';
     const m = detail.match(/"message":\s*"([^"]{1,200})/);
