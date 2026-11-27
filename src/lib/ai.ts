@@ -85,11 +85,12 @@ function trimInline(messages: ApiMsg[]): ApiMsg[] {
 
 const TABULAR = /\.(csv|tsv|xlsx|xls|xlsm)$/i;
 const TEXT_EXT = /\.(txt|md|markdown|json|xml|html?|js|ts|tsx|jsx|py|sql|yaml|yml|log|ini|cfg|geojson|kml|gpx|rtf|tex)$/i;
-// Fichiers lisibles directement par l'IA (Mistral) : PDF et images.
-const INLINE_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|gif))/;
+// Fichiers lisibles directement par l'IA : PDF et images (+ audio et vidéo avec Gemini).
+const INLINE_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|gif|heic|heif)|audio\/|video\/)/;
 const EXT_MIME: Record<string, string> = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
-  gif: 'image/gif',
+  gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4',
+  ogg: 'audio/ogg', flac: 'audio/flac', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
 };
 
 export const isTabular = (f: File) => TABULAR.test(f.name);

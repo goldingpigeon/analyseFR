@@ -287,8 +287,8 @@ export function ChatPanel({
         />
       </motion.div>
       <p className="mt-3 text-center text-[11px] leading-5 text-mist/80">
-        L'assistant (Mistral AI) peut se tromper : vérifiez les chiffres importants. Les fichiers CSV et Excel de permis sont analysés sur votre appareil ;
-        seuls des totaux sont envoyés. Les autres fichiers joints sont envoyés à Mistral AI.
+        L'assistant IA peut se tromper : vérifiez les chiffres importants. Les fichiers CSV et Excel de permis sont analysés sur votre appareil ;
+        seuls des totaux sont envoyés. Les autres fichiers joints sont envoyés au service d'IA (Google Gemini).
       </p>
     </div>
   );
