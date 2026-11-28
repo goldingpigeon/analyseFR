@@ -1,17 +1,11 @@
-// Fonction Supabase « assistant » : relaie les questions du chat vers une IA
-// (Claude d'Anthropic en priorité, puis Mistral ou Google Gemini).
+// Fonction Supabase « assistant » : relaie les questions du chat vers une IA (Mistral ou Google Gemini).
 // Les clés restent ici, côté serveur : elles ne sont jamais envoyées au navigateur.
 // Seuls les utilisateurs connectés peuvent l'appeler.
 //
 // Secrets (Supabase → Edge Functions → Secrets) — un seul suffit :
-//   ANTHROPIC_API_KEY clé créée sur https://console.anthropic.com  (utilisée en priorité ;
-//                     Gemini prend le relais automatiquement si Claude échoue)
-//   CLAUDE_MODEL     (facultatif) par défaut « claude-haiku-5-5 »
-//   MISTRAL_API_KEY  clé créée sur https://console.mistral.ai/api-keys
+//   MISTRAL_API_KEY  clé créée sur https://console.mistral.ai/api-keys  (utilisée en priorité)
 //   GEMINI_API_KEY   clé créée sur https://aistudio.google.com/apikey
 //   AI_MODEL         (facultatif) nom de modèle à forcer
-
-import Anthropic from 'npm:@anthropic-ai/sdk@1.14.0';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -79,116 +73,9 @@ async function handle(req: Request): Promise<Response> {
   const mistralKey = clean(Deno.env.get('MISTRAL_API_KEY')).replace(/^MISTRAL_API_KEY[:=]/i, '');
   const geminiKey = clean(Deno.env.get('GEMINI_API_KEY')).replace(/^GEMINI_API_KEY[:=]/i, '');
   const forced = clean(Deno.env.get('AI_MODEL')) || clean(Deno.env.get('GEMINI_MODEL'));
-  const claudeKey = clean(Deno.env.get('ANTHROPIC_API_KEY')).replace(/^ANTHROPIC_API_KEY[:=]/i, '');
-  if (claudeKey) {
-    const r = await claude(claudeKey, messages, clean(Deno.env.get('CLAUDE_MODEL')) || 'claude-haiku-5-5', deadline);
-    if (r instanceof Response) return r;
-    // Claude indisponible (crédits épuisés, surcharge…) : Gemini prend le relais s'il est configuré
-    if (geminiKey) return gemini(geminiKey, messages, forced, deadline);
-    return json(502, { error: r.error });
-  }
   if (mistralKey) return mistral(mistralKey, messages, forced, deadline);
   if (geminiKey) return gemini(geminiKey, messages, forced, deadline);
   return json(500, { error: "Aucune clé d'IA n'est configurée : ajoutez le secret MISTRAL_API_KEY dans Supabase." });
-}
-
-/* ================================================================ Claude (Anthropic) */
-
-const CLAUDE_IMAGES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-
-/** Convertit la conversation (format du site) au format Claude : fichiers d'abord, puis le texte. */
-function toClaude(messages: Msg[]): Anthropic.MessageParam[] {
-  return messages.map((m) => {
-    if (m.role === 'model') {
-      return { role: 'assistant' as const, content: m.parts.map((p) => ('text' in p ? p.text : '')).join('\n').trim() || '…' };
-    }
-    const files: Anthropic.ContentBlockParam[] = [];
-    const texts: Anthropic.ContentBlockParam[] = [];
-    for (const p of m.parts) {
-      if ('text' in p) {
-        if (p.text.trim()) texts.push({ type: 'text', text: p.text });
-      } else if (p.inlineData.mimeType === 'application/pdf') {
-        files.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: p.inlineData.data } });
-      } else if (CLAUDE_IMAGES.has(p.inlineData.mimeType)) {
-        files.push({
-          type: 'image',
-          source: { type: 'base64', media_type: p.inlineData.mimeType as 'image/png', data: p.inlineData.data },
-        });
-      } else {
-        texts.push({ type: 'text', text: `(Pièce jointe au format ${p.inlineData.mimeType} : non lisible par l'assistant.)` });
-      }
-    }
-    const content = [...files, ...texts];
-    return { role: 'user' as const, content: content.length ? content : [{ type: 'text', text: '…' }] };
-  });
-}
-
-/** Renvoie la réponse en flux, ou { error } si Claude n'a pas pu répondre (pour basculer sur Gemini). */
-async function claude(key: string, messages: Msg[], model: string, deadline: number): Promise<Response | { error: string }> {
-  const client = new Anthropic({ apiKey: key, maxRetries: 1, timeout: 20_000 });
-  const stream = client.messages.stream({
-    model,
-    max_tokens: 64000,
-    system: SYSTEM,
-    // conversation simple : réflexion légère, la réponse commence vite
-    output_config: { effort: 'low' },
-    messages: toClaude(messages),
-  });
-  const it = stream[Symbol.asyncIterator]();
-
-  // On attend le premier événement avant de répondre au navigateur : en cas d'erreur, Gemini peut encore prendre le relais.
-  let first: IteratorResult<Anthropic.MessageStreamEvent>;
-  let timer: number | undefined;
-  try {
-    first = await Promise.race([
-      it.next(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('délai dépassé')), Math.max(1_000, Math.min(15_000, deadline - Date.now())));
-      }),
-    ]);
-  } catch (e) {
-    stream.abort();
-    console.error('Claude', model, e);
-    if (e instanceof Anthropic.AuthenticationError) return { error: 'Anthropic refuse la clé ANTHROPIC_API_KEY. Recopiez-la depuis console.anthropic.com.' };
-    if (e instanceof Anthropic.RateLimitError) return { error: "Limite d'utilisation de Claude atteinte pour cette minute. Réessayez dans un instant." };
-    if (e instanceof Anthropic.BadRequestError && /credit/i.test(e.message)) return { error: 'Les crédits Claude sont épuisés. Rechargez-les sur console.anthropic.com.' };
-    if (e instanceof Anthropic.NotFoundError) return { error: `Le modèle « ${model} » est introuvable. Vérifiez le secret CLAUDE_MODEL.` };
-    if (e instanceof Anthropic.APIError) return { error: `Claude a répondu avec une erreur (${e.status ?? '?'}). Réessayez dans un instant.` };
-    return { error: 'Claude met trop de temps à répondre. Réessayez dans un instant.' };
-  } finally {
-    clearTimeout(timer);
-  }
-
-  const enc = new TextEncoder();
-  const text = (ev: Anthropic.MessageStreamEvent): string => {
-    if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') return ev.delta.text;
-    if (ev.type === 'message_delta' && ev.delta.stop_reason === 'refusal') return "\n\n_(L'assistant ne peut pas répondre à cette demande.)_";
-    return '';
-  };
-  const body = new ReadableStream({
-    async start(ctrl) {
-      try {
-        if (!first.done) {
-          const t = text(first.value);
-          if (t) ctrl.enqueue(enc.encode(t));
-        }
-        while (true) {
-          const { done, value } = await it.next();
-          if (done) break;
-          const t = text(value);
-          if (t) ctrl.enqueue(enc.encode(t));
-        }
-      } catch (e) {
-        console.error('Claude (flux)', e);
-        ctrl.enqueue(enc.encode('\n\n_(La réponse a été interrompue.)_'));
-      }
-      ctrl.close();
-    },
-    cancel() {
-      stream.abort();
-    },
-  });
-  return new Response(body, { headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' } });
 }
 
 /* ================================================================ Mistral */

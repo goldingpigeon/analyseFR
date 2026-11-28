@@ -85,7 +85,7 @@ VITE_SUPABASE_ANON_KEY=votre-cle-anon
 Seuls le prénom et l'adresse e-mail sont enregistrés chez Supabase. Les fichiers analysés
 ne quittent jamais l'appareil.
 
-## Assistant IA (Claude Haiku 5.5, Google Gemini en secours)
+## Assistant IA (Google Gemini, ou Mistral AI)
 
 Une fois connecté, la zone « Quoi de neuf ? » est un chat. On peut y joindre n'importe quel fichier :
 
@@ -101,9 +101,8 @@ Installation (une seule fois) :
    ajoutez-le dans GitHub (**Settings → Secrets and variables → Actions → Secrets**) sous le nom
    `SUPABASE_ACCESS_TOKEN`. Le workflow « Déployer la fonction assistant » envoie ensuite
    `supabase/functions/assistant` dans Supabase à chaque modification.
-3. Supabase → **Edge Functions → Secrets** : ajoutez `ANTHROPIC_API_KEY` (Claude, payant, utilisé en priorité ;
-   `CLAUDE_MODEL` par défaut `claude-haiku-5-5`) et/ou `GEMINI_API_KEY` (gratuit, pris en secours
-   automatiquement si Claude échoue).
+3. Supabase → **Edge Functions → Secrets** : ajoutez `GEMINI_API_KEY` (gratuit) ou `MISTRAL_API_KEY`
+   (utilisée en priorité si elle existe). `AI_MODEL` permet de forcer un modèle.
 
 La clé reste dans Supabase ; seuls les utilisateurs connectés peuvent appeler l'assistant.
 
