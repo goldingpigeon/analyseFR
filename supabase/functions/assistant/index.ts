@@ -151,37 +151,65 @@ async function mistral(key: string, messages: Msg[], forced: string, deadline: n
 /* ================================================================ Gemini */
 
 async function gemini(key: string, messages: Msg[], forced: string, deadline: number): Promise<Response> {
-  const body = (fast: boolean) =>
-    JSON.stringify({
+  // Gemma (modèle ouvert de Google) a son propre quota gratuit, bien plus large : dernier secours.
+  // Il ne connaît ni les instructions système ni le réglage de « réflexion » : on adapte la requête.
+  const isGemma = (m: string) => m.startsWith('gemma');
+  const body = (m: string, fast: boolean) => {
+    if (isGemma(m)) {
+      const contents = messages.map((msg, i) => ({
+        role: msg.role,
+        parts: [
+          ...(i === 0 ? [{ text: `${SYSTEM}\n\n---\n` }] : []),
+          // Gemma lit le texte et les images, pas les PDF / audio / vidéo
+          ...msg.parts.map((p) =>
+            'inlineData' in p && !p.inlineData.mimeType.startsWith('image/')
+              ? { text: '(Pièce jointe non lisible par le modèle de secours.)' }
+              : p,
+          ),
+        ],
+      }));
+      return JSON.stringify({ contents, generationConfig: { temperature: 0.4 } });
+    }
+    return JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: messages,
       generationConfig: { temperature: 0.4, ...(fast ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) },
     });
+  };
   const url = (m: string) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:streamGenerateContent?alt=sse`;
-  const call = (m: string, fast: boolean) =>
-    timed(fetch(url(m), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: body(fast) }), deadline - Date.now());
 
-  const models = forced ? [forced] : ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+  const models = forced ? [forced] : ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemma-3-27b-it'];
+  // Un modèle surchargé n'a droit qu'à 10 s, pour laisser le temps aux modèles de secours.
+  const call = (m: string, fast: boolean, last: boolean) =>
+    timed(
+      fetch(url(m), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: body(m, fast) }),
+      last ? deadline - Date.now() : Math.min(10_000, deadline - Date.now()),
+    );
+
   let res: Response | null = null;
   let status = 0;
   let detail = '';
-  for (const m of models) {
-    res = await call(m, true);
-    if (res && res.status === 400) {
+  for (let i = 0; i < models.length; i++) {
+    const m = models[i];
+    const last = i === models.length - 1;
+    res = await call(m, !isGemma(m), last);
+    if (res && res.status === 400 && !isGemma(m)) {
       detail = await res.text().catch(() => '');
-      res = /thinking/i.test(detail) ? await call(m, false) : new Response(detail, { status: 400 });
+      res = /thinking/i.test(detail) ? await call(m, false, last) : new Response(detail, { status: 400 });
     }
     if (res?.ok && res.body) break;
     status = res?.status ?? 504;
     detail = res ? await res.text().catch(() => '') : 'délai dépassé';
     console.error('Gemini', m, status, detail.slice(0, 300));
-    if (![429, 500, 503, 504].includes(status)) break;
+    // surcharge, quota épuisé ou modèle indisponible : on passe au suivant
+    if (![404, 429, 500, 503, 504].includes(status)) break;
   }
   if (!res?.ok || !res.body) {
     let msg = `Google a répondu avec une erreur (${status}).`;
-    if ([500, 503, 504].includes(status)) msg = 'Google est surchargé en ce moment. Réessayez dans une minute.';
-    else if (status === 429) msg = "Limite d'utilisation de Gemini atteinte. Réessayez dans une minute.";
+    if ([500, 503, 504].includes(status)) msg = 'Les modèles gratuits de Google sont surchargés en ce moment. Réessayez dans quelques minutes.';
+    else if (status === 429) msg = "Le quota gratuit de Google est épuisé pour l'instant (il se renouvelle chaque jour). Réessayez plus tard.";
     else if ([400, 401, 403].includes(status) && /key|credential|auth|permission/i.test(detail)) msg = 'Google refuse la clé GEMINI_API_KEY.';
+    else if (status === 404) msg = 'Aucun modèle disponible. Ajoutez le secret AI_MODEL avec un nom de modèle listé dans AI Studio.';
     return json(502, { error: msg });
   }
   return relay(res.body, (ev) => {
