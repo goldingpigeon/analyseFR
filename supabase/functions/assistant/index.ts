@@ -7,6 +7,8 @@
 //   GEMINI_API_KEY   clé créée sur https://aistudio.google.com/apikey
 //   AI_MODEL         (facultatif) nom de modèle à forcer
 
+import { CREATOR, KNOWLEDGE } from './knowledge.ts';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -23,7 +25,12 @@ Règles :
 - Quand des statistiques calculées par l'application sont fournies, appuie-toi uniquement sur elles et cite les chiffres. N'invente jamais de données.
 - Si une information manque pour répondre, dis-le simplement et propose ce qu'il faudrait faire (par ex. lancer une recherche dans l'espace de travail).
 - Les codes communes sont des codes INSEE à 5 caractères (ex. 12145 = Millau). Les dates sont au format JJ/MM/AAAA.
-- Tu peux aussi aider sur tout autre fichier ou question que l'utilisateur t'envoie.`;
+- Tu peux aussi aider sur tout autre fichier ou question que l'utilisateur t'envoie.
+- Pour les questions sur la façon de trouver ou d'exploiter les permis (liens, procédure, prospection CSPS), appuie-toi sur le document de référence ci-dessous et donne ses liens.
+
+${CREATOR}
+
+${KNOWLEDGE}`;
 
 /** Format envoyé par le site (celui de Gemini). */
 type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
