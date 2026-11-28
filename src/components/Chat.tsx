@@ -6,6 +6,9 @@ import { askAssistant, isTabular, prepareFile, type ApiMsg, type Part } from '..
 import { fmtBytes } from '../lib/fr';
 import { deleteConversation, HistoryError, listConversations, loadConversation, saveConversation, type ConvSummary } from '../lib/history';
 import { Quark } from './Quark';
+import { exportResultsByDate, exportRows } from '../lib/export';
+import type { Results } from '../lib/types';
+import { fmtInt } from '../lib/fr';
 
 /* ------------------------------------------------------------ État de la conversation */
 
@@ -20,6 +23,8 @@ export interface ChatMsg {
   phase?: string;
   /** Réponse reçue pendant cette session : affichée avec l'effet machine à écrire. */
   animate?: boolean;
+  /** Permis analysés pendant cette session, téléchargeables en Excel (non enregistrés dans l'historique). */
+  downloads?: { label: string; results: Results }[];
 }
 
 /**
@@ -123,7 +128,7 @@ export function useChatState(userId: string | null) {
 }
 export type ChatState = ReturnType<typeof useChatState>;
 
-export type AnalyzeTabular = (file: File, onProgress: (pct: number) => void) => Promise<{ text: string; note?: string }>;
+export type AnalyzeTabular = (file: File, onProgress: (pct: number) => void) => Promise<{ text: string; note?: string; results?: Results }>;
 
 let seq = 0;
 const uid = () => `m${Date.now().toString(36)}${seq++}`;
@@ -211,6 +216,7 @@ export function ChatPanel({
       // 1. Préparer les pièces jointes
       const parts: Part[] = [];
       const notes: string[] = [];
+      const downloads: NonNullable<ChatMsg['downloads']> = [];
       if (workspaceContext && workspaceContext !== lastContext.current) {
         parts.push({ text: `Contexte — résultats actuellement affichés dans l'espace de travail :\n${workspaceContext}` });
         lastContext.current = workspaceContext;
@@ -221,6 +227,7 @@ export function ChatPanel({
           const r = await analyzeTabular(f, (pct) => patch(botId, { phase: `Analyse de « ${f.name} »… ${pct} %` }));
           parts.push({ text: r.text });
           if (r.note) notes.push(r.note);
+          if (r.results?.code.length) downloads.push({ label: f.name.replace(/\.[^.]+$/, ''), results: r.results });
         } else {
           patch(botId, { phase: `Lecture de « ${f.name} »…` });
           const p = await prepareFile(f);
@@ -229,7 +236,7 @@ export function ChatPanel({
         }
       }
       parts.push({ text: question || 'Analyse ce(s) fichier(s) et résume ce qu’ils contiennent.' });
-      patch(userId, { parts, notes: notes.length ? notes : undefined });
+      patch(userId, { parts, notes: notes.length ? notes : undefined, downloads: downloads.length ? downloads : undefined });
       patch(botId, { phase: 'Réflexion…' });
 
       // 2. Historique au format Gemini
@@ -423,6 +430,16 @@ function Message({ m }: { m: ChatMsg }) {
         {m.notes?.map((n) => (
           <p key={n} className="max-w-[85%] text-right text-xs text-mist">⚠ {n}</p>
         ))}
+        {m.downloads?.map((d) => (
+          <button
+            key={d.label}
+            type="button"
+            onClick={() => exportResultsByDate(d.results, `permis_${d.label}.csv`)}
+            className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/85"
+          >
+            ⬇ Télécharger les {fmtInt(d.results.code.length)} permis en Excel
+          </button>
+        ))}
       </motion.div>
     );
   }
@@ -442,7 +459,9 @@ function Message({ m }: { m: ChatMsg }) {
           <p role="alert" className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{m.text}</p>
         ) : (
           <div className={`md-body ${m.status === 'streaming' || typing ? 'is-streaming' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{shown}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={typing || active ? undefined : TABLE_WITH_EXCEL}>
+              {shown}
+            </ReactMarkdown>
             {m.status === 'stopped' && <p className="mt-2 text-xs text-mist">Réponse arrêtée.</p>}
           </div>
         )}
@@ -450,6 +469,30 @@ function Message({ m }: { m: ChatMsg }) {
     </motion.div>
   );
 }
+
+/** Tableaux des réponses : bouton « Excel » pour télécharger le tableau tel qu'il est affiché. */
+function ExcelTable({ children }: { children?: React.ReactNode }) {
+  const ref = useRef<HTMLTableElement>(null);
+  const save = () => {
+    const rows = Array.from(ref.current?.querySelectorAll('tr') ?? []).map((tr) =>
+      Array.from(tr.querySelectorAll('th,td')).map((c) => (c as HTMLElement).innerText),
+    );
+    if (rows.length) exportRows(rows, `tableau_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+  return (
+    <div className="my-2">
+      <table ref={ref}>{children}</table>
+      <button
+        type="button"
+        onClick={save}
+        className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/20 px-3 py-1 text-xs text-white transition hover:border-white/50 hover:bg-white/10"
+      >
+        ⬇ Excel
+      </button>
+    </div>
+  );
+}
+const TABLE_WITH_EXCEL = { table: ExcelTable };
 
 function FileIcon({ name }: { name: string }) {
   const ext = (name.split('.').pop() || '').slice(0, 4).toUpperCase();

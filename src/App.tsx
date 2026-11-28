@@ -236,7 +236,7 @@ export default function App() {
         filters: { from: 0, to: 0, communes: [], deps: [] },
       });
     });
-    return { text: statsForAI(r, `Fichier « ${file.name} » (${info.kind}, ${fmtBytes(file.size)}) : toutes dates, toutes communes.`) };
+    return { text: statsForAI(r, `Fichier « ${file.name} » (${info.kind}, ${fmtBytes(file.size)}) : toutes dates, toutes communes.`), results: r };
   };
 
   const workspaceContext = useMemo(

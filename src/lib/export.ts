@@ -58,3 +58,16 @@ export function exportGroups(codes: string[], counts: Uint32Array, latest: Int32
   }
   download([lines.join('\r\n') + '\r\n'], name);
 }
+
+/** Exporte un tableau quelconque (lignes de cellules) en CSV pour Excel. */
+export function exportRows(rows: string[][], name: string) {
+  download([rows.map((r) => r.map((c) => cell(c.trim())).join(';')).join('\r\n') + '\r\n'], name);
+}
+
+/** Tous les permis d'un résultat, du plus récent au plus ancien. */
+export function exportResultsByDate(r: Results, name: string) {
+  const order = new Uint32Array(r.code.length);
+  for (let i = 0; i < order.length; i++) order[i] = i;
+  order.sort((a, b) => r.date[b] - r.date[a] || (r.code[a] < r.code[b] ? -1 : 1));
+  exportList(r, order, name);
+}
