@@ -31,6 +31,6 @@ jobs:
           fi
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.4.0  # version fixe : pas de recherche de « latest » (limitée par GitHub)
       - name: Déployer « assistant »
         run: supabase functions deploy assistant --project-ref "$PROJECT_REF" --no-verify-jwt --yes
